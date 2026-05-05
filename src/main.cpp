@@ -6,12 +6,9 @@
 #define F_CPU 16000000UL
 
 // --- Correct Mapping for Eta32mini + MightyCore Standard Pinout ---
-// LCD Pins: RS=25(PA1), EN=26(PA2), D4=27(PA3), D5=28(PA4), D6=29(PA5), D7=30(PA6)
 LiquidCrystal lcd(25, 26, 27, 28, 29, 30);
 
-// Keypad Pins (Eta32mini - from PDF):
-// Rows (PB4-PB7) -> Arduino Pins {4, 5, 6, 7}
-// Cols (PD2-PD5) -> Arduino Pins {10, 11, 12, 13}
+// Keypad Pins
 const int rowPins[4] = {4, 5, 6, 7};
 const int colPins[4] = {10, 11, 12, 13};
 
@@ -21,15 +18,11 @@ char keys[4][4] = {
     {'7', '8', '9', 'C'},
     {'*', '0', '#', 'D'}};
 
-// Output Pins (Eta32mini):
-#define BUZZER_PIN 21 // Buzzer on PC5 (Arduino Pin 21) - with DIP switch
+#define BUZZER_PIN 21
 
 // ===== CUSTOM CHARACTERS =====
-// Player character (bird-like)
-byte player[8] = {B00100, B01010, B11111, B10101, B11111, B01010, B00100, B00000};
-
-// Obstacle character (tree/block)
-byte obstacle[8] = {B00111, B01111, B11111, B11111, B11111, B01111, B00111, B00000};
+byte player[8] = {B00111, B00101, B00111, B10110, B11111, B01110, B01010, B00000};
+byte obstacle[8] = {B00100, B00101, B10101, B10111, B11100, B00100, B00100, B00000};
 
 // ===== STATE VARIABLES =====
 enum GameState
@@ -40,18 +33,15 @@ enum GameState
   DINO_GAME
 };
 GameState currentState = MENU;
-volatile boolean keyPressFlag = false;
-volatile char pressedKey = '\0';
 
 // ===== GAME VARIABLES =====
-int playerPos = 0; // 0 = ground, 1 = jumping
+int playerPos = 0;
+int jumpTimer = 0;
 int gameScore = 0;
-int obsPos = 15;
+int highScore = 0;
+int obsPos[2] = {15, 23};
 unsigned long lastGameUpdate = 0;
-// gameplay timing
-int prevObsPos = -1; // previous obstacle column (for clearing)
-const int GAME_SPEED = 320; // milliseconds (slightly slower for readability)
-const int JUMP_HEIGHT = 1;
+int currentSpeed = 250; // متغير السرعة عشان نصعّب اللعبة
 
 // --- Function Prototypes ---
 char getKey();
@@ -69,10 +59,8 @@ void setup()
   lcd.createChar(0, player);
   lcd.createChar(1, obstacle);
 
-  // Initializing Outputs
   pinMode(BUZZER_PIN, OUTPUT);
 
-  // Initialize Keypad Pins
   for (int i = 0; i < 4; i++)
   {
     pinMode(rowPins[i], OUTPUT);
@@ -80,16 +68,14 @@ void setup()
     pinMode(colPins[i], INPUT_PULLUP);
   }
 
-  // Reset all variables
   resetAll();
 
-  // Show welcome message
   lcd.clear();
-  delay(100); // Additional delay for LCD stability
+  delay(100);
   lcd.print("ProjectMp v2.0");
   lcd.setCursor(0, 1);
   lcd.print("Starting...");
-  delay(2000); // Longer delay for LCD initialization
+  delay(2000);
 }
 
 void loop()
@@ -128,15 +114,11 @@ void showMenu()
   else if (choice == '2')
   {
     currentState = DINO_GAME;
-    playerPos = 0; // Reset player position
-    gameScore = 0; // Reset score
-    obsPos = 15;   // Reset obstacle position
-    lastGameUpdate = millis();
   }
   delay(300);
 }
 
-// --- Keypad Scanning Logic (Blocking) ---
+// --- Keypad Scanning Logic ---
 char getKey()
 {
   while (true)
@@ -148,11 +130,11 @@ char getKey()
       {
         if (digitalRead(colPins[c]) == LOW)
         {
-          delay(30); // Debounce
+          delay(30);
           while (digitalRead(colPins[c]) == LOW)
             ;
           digitalWrite(rowPins[r], HIGH);
-          delay(30); // Debounce on release
+          delay(30);
           return keys[r][c];
         }
       }
@@ -161,7 +143,6 @@ char getKey()
   }
 }
 
-// --- Keypad Scanning Logic (Non-Blocking) ---
 char getKeyNonBlocking()
 {
   for (int r = 0; r < 4; r++)
@@ -171,7 +152,7 @@ char getKeyNonBlocking()
     {
       if (digitalRead(colPins[c]) == LOW)
       {
-        delay(30); // Debounce
+        delay(30);
         if (digitalRead(colPins[c]) == LOW)
         {
           while (digitalRead(colPins[c]) == LOW)
@@ -201,13 +182,12 @@ void playGameOver()
   delay(100);
   playBeep(100);
   delay(100);
-  playBeep(150);
+  playBeep(250);
 }
 
-// ===== Mode 1: Countdown Timer =====
+// ===== Mode 1: Countdown Timer (UNCHANGED) =====
 void runTimer()
 {
-  // Input time
   lcd.clear();
   delay(100);
   lcd.print("Timer Mode");
@@ -241,26 +221,22 @@ void runTimer()
   }
 
   delay(500);
-
-  // Timer running
   lcd.clear();
   delay(50);
   lcd.print("Timer Running");
   lcd.setCursor(0, 1);
   int displayValue = totalSeconds;
-  unsigned long lastUpdate = millis(); // ✅ Initialize timer
+  unsigned long lastUpdate = millis();
 
   while (displayValue >= 0)
   {
-    // Keep checking for key press
     for (int i = 0; i < 40; i++)
-    { // Check input ~40 times per second
-      // Check for key press to cancel
+    {
       char key = getKeyNonBlocking();
       if (key == 'A' || key == 'D')
       {
         lcd.clear();
-        delay(50); // Ensure LCD clears properly
+        delay(50);
         lcd.print("Cancelled");
         lcd.setCursor(0, 1);
         lcd.print("Going to Menu");
@@ -270,17 +246,15 @@ void runTimer()
         return;
       }
 
-      // Check if 1 second has passed
       if (millis() - lastUpdate >= 1000)
       {
-        // Clear and rewrite the time display
         lcd.setCursor(0, 1);
         lcd.print("Time: ");
         if (displayValue < 10)
           lcd.print("0");
         lcd.print(displayValue);
-        lcd.print("s  "); // Extra spaces to clear old text
-        delay(100);       // Delay to let LCD update properly
+        lcd.print("s  ");
+        delay(100);
 
         displayValue--;
         lastUpdate = millis();
@@ -290,14 +264,13 @@ void runTimer()
     }
   }
 
-  // Time's up!
   lcd.clear();
   delay(50);
   lcd.print("** TIME UP **");
   lcd.setCursor(0, 1);
   lcd.print("Well Done!");
 
-  playGameOver(); // 3 beeps
+  playGameOver();
   delay(500);
   playBeep(200);
   delay(500);
@@ -305,167 +278,180 @@ void runTimer()
   currentState = MENU;
 }
 
-// ===== Mode 2: Dino Game =====
+// ===== Mode 2: Dino Game (UPDATED) =====
 void runDinoGame()
 {
   lcd.clear();
-  delay(50);
-  lcd.print("Game Starting");
+  lcd.print("Dino Game!");
   lcd.setCursor(0, 1);
-  lcd.print("Press to Jump");
-  delay(1500);
+  lcd.print("Any key to jump");
+  delay(2000);
 
-  // Game loop
-  playerPos = 0; // Player starts on ground
+  lcd.clear();
+  lcd.setCursor(12, 0);
+  lcd.print("S:0");
+
+  playerPos = 0;
+  jumpTimer = 0;
   gameScore = 0;
-  obsPos = 15;
+  currentSpeed = 30; // سرعة البداية (في بروتس ممكن تقلليها لـ 15 لو بطيئة)
+  obsPos[0] = 15;
+  obsPos[1] = 23; // العقبة التانية بتيجي بعدها بمسافة
   lastGameUpdate = millis();
 
   boolean gameRunning = true;
 
   while (gameRunning)
   {
-    // Check for non-blocking key press for jumping
     char key = getKeyNonBlocking();
 
-    // Jump with any key, or 'A'/'D' to quit
     if (key != '\0')
     {
       if (key == 'A' || key == 'D')
       {
-        // Quit game
         gameRunning = false;
         break;
       }
-      // Jump!
-      if (playerPos == 0)
+      else if (playerPos == 0 && jumpTimer == 0)
       {
         playerPos = 1;
-        playBeep(50); // Jump sound
+        jumpTimer = 3;
+        playBeep(20);
       }
     }
 
-    // Update game state every GAME_SPEED ms
-    if (millis() - lastGameUpdate >= GAME_SPEED)
+    if (millis() - lastGameUpdate >= currentSpeed)
     {
-      // store previous obstacle column for later clearing
-      prevObsPos = obsPos;
 
-      // Move obstacle left
-      obsPos--;
-
-      // Obstacle wraps around
-      if (obsPos < -1)
+      for (int i = 0; i < 2; i++)
       {
-        obsPos = 15;
-        gameScore++;
+        // 1. مسح العقبة القديمة
+        if (obsPos[i] >= 0 && obsPos[i] < 16)
+        {
+          lcd.setCursor(obsPos[i], 1);
+          lcd.print(" ");
+        }
+
+        // 2. تحريك العقبة
+        obsPos[i]--;
+
+        // 3. إعادة رسم العقبة وتحديث السكور
+        if (obsPos[i] < 0)
+        {
+          // حساب مسافة عشوائية للعقبة الجديدة بناءً على مكان العقبة التانية
+          int otherObs = (i == 0) ? 1 : 0;
+          int gap = random(5, 9); // مسافة عشوائية بين 5 و 8 خطوات
+          obsPos[i] = max(15, obsPos[otherObs]) + gap;
+
+          gameScore++;
+          lcd.setCursor(12, 0);
+          lcd.print("S:");
+          lcd.print(gameScore);
+
+          // تحسين: زيادة السرعة تدريجياً
+          if (currentSpeed > 5 && gameScore % 3 == 0)
+          {
+            currentSpeed -= 2;
+          }
+
+          // تحسين: بيب احتفالي كل 5 نقط
+          if (gameScore % 2 == 0)
+          {
+            playBeep(50);
+          }
+        }
+
+        // 4. رسم العقبة في مكانها الجديد
+        if (obsPos[i] >= 0 && obsPos[i] < 16)
+        {
+          lcd.setCursor(obsPos[i], 1);
+          lcd.write(byte(1));
+        }
       }
 
-      // Player gravity (always falling)
-      if (playerPos > 0)
+      // 5. فيزياء النط
+      if (jumpTimer > 0)
       {
-        playerPos = 0; // Fall back to ground
+        jumpTimer--;
+        if (jumpTimer == 0)
+        {
+          lcd.setCursor(1, 0);
+          lcd.print(" ");
+          playerPos = 0;
+        }
       }
 
-      // Collision detection
-      if (obsPos == 0 && playerPos == 0)
+      // 6. كشف التصادم (لو خبط في أي عقبة من الاتنين)
+      if ((obsPos[0] == 1 || obsPos[1] == 1) && playerPos == 0)
       {
-        // Hit! Game Over
+        lcd.setCursor(1, 1);
+        lcd.write(byte(1));
         gameRunning = false;
         break;
+      }
+
+      // 7. رسم الديناصور
+      if (playerPos == 1)
+      {
+        lcd.setCursor(1, 0);
+        lcd.write(byte(0));
+        lcd.setCursor(1, 1);
+        lcd.print(" ");
+      }
+      else
+      {
+        lcd.setCursor(1, 1);
+        lcd.write(byte(0));
       }
 
       lastGameUpdate = millis();
     }
-
-    // Draw game (clear previous obstacle then draw obstacle first so player is visible)
-    // Clear previous obstacle cell if it moved
-    if (prevObsPos >= 0 && prevObsPos < 16 && prevObsPos != obsPos)
-    {
-      lcd.setCursor(prevObsPos, 1);
-      lcd.print(" ");
-    }
-
-    // Score
-    lcd.setCursor(0, 0);
-    lcd.print("S:");
-    if (gameScore < 10)
-      lcd.print("0");
-    lcd.print(gameScore);
-    lcd.print(" ");
-
-    // Draw obstacle first (so player appears on top)
-    if (obsPos >= 0 && obsPos < 16)
-    {
-      lcd.setCursor(obsPos, 1);
-      lcd.write(byte(1)); // Obstacle
-    }
-
-    // Draw player: if jumping show at top row, else on bottom row
-    if (playerPos > 0)
-    {
-      // clear ground cell
-      lcd.setCursor(1, 1);
-      lcd.print(" ");
-      lcd.setCursor(1, 0);
-      lcd.write(byte(0)); // Player in air
-    }
-    else
-    {
-      // ensure top cell cleared
-      lcd.setCursor(1, 0);
-      lcd.print(" ");
-      lcd.setCursor(1, 1);
-      lcd.write(byte(0)); // Player on ground
-    }
-
-    // Small delay for frame stability
-    delay(30);
   }
 
-  // Game Over Screen
+  // --- شاشة النهاية (GAME OVER) ---
+  if (gameScore > highScore)
+  {
+    highScore = gameScore; // حفظ أعلى سكور
+  }
+
+  delay(500);
   lcd.clear();
-  delay(50);
-  lcd.print("** GAME OVER **");
-  lcd.setCursor(0, 1);
-  lcd.print("Score:");
-  if (gameScore < 10)
-    lcd.print("0");
+  lcd.print("GAME OVER! S:");
   lcd.print(gameScore);
-  lcd.print("    ");
+  lcd.setCursor(0, 1);
+  lcd.print("High Score: ");
+  lcd.print(highScore);
 
   playGameOver();
-  delay(1500);
+
+  // تحسين: انتظار ضغطة زرار عشان ترجعي للمنيو
+  delay(1000); // تأخير بسيط عشان مايخرجش فوراً لو كنتي بتدوسي جامد
+  lcd.clear();
+  lcd.print("GAME OVER! S:");
+  lcd.print(gameScore);
+  lcd.setCursor(0, 1);
+  lcd.print("Press Any Key...");
+
+  // تنظيف أي ضغطات معلقة
+  while (getKeyNonBlocking() != '\0')
+    ;
+  // انتظار ضغطة جديدة
+  while (getKeyNonBlocking() == '\0')
+    ;
 
   currentState = MENU;
 }
 
 // ===== RESET FUNCTION =====
-// This function is called when the device is reset (power on or RESET button)
-// It ensures all variables and hardware are properly initialized
 void resetAll()
 {
-  // Reset all game variables
   currentState = MENU;
-  playerPos = 0;
-  gameScore = 0;
-  obsPos = 15;
-  lastGameUpdate = millis();
-  keyPressFlag = false;
-  pressedKey = '\0';
-
-  // Clear LCD display completely
   lcd.clear();
-  lcd.home(); // Move cursor to (0,0)
-
-  // Ensure buzzer is OFF
+  lcd.home();
   digitalWrite(BUZZER_PIN, LOW);
-
-  // Reset keypad pins to initial state
   for (int i = 0; i < 4; i++)
   {
     digitalWrite(rowPins[i], HIGH);
   }
-
-  delay(100); // Small delay for all hardware to stabilize
+  delay(100);
 }
