@@ -41,7 +41,7 @@ int gameScore = 0;
 int highScore = 0;
 int obsPos[2] = {15, 23};
 unsigned long lastGameUpdate = 0;
-int currentSpeed = 250; // متغير السرعة عشان نصعّب اللعبة
+int currentSpeed = 250;
 
 // --- Function Prototypes ---
 char getKey();
@@ -294,9 +294,9 @@ void runDinoGame()
   playerPos = 0;
   jumpTimer = 0;
   gameScore = 0;
-  currentSpeed = 150; // سرعة البداية (في بروتس ممكن تقلليها لـ 15 لو بطيئة)
+  currentSpeed = 150;
   obsPos[0] = 15;
-  obsPos[1] = 23; // العقبة التانية بتيجي بعدها بمسافة
+  obsPos[1] = 23;
   lastGameUpdate = millis();
 
   boolean gameRunning = true;
@@ -325,22 +325,22 @@ void runDinoGame()
 
       for (int i = 0; i < 2; i++)
       {
-        // 1. مسح العقبة القديمة
+        // 1. Clear old obstacle
         if (obsPos[i] >= 0 && obsPos[i] < 16)
         {
           lcd.setCursor(obsPos[i], 1);
           lcd.print(" ");
         }
 
-        // 2. تحريك العقبة
+        // 2. Move obstacle
         obsPos[i]--;
 
-        // 3. إعادة رسم العقبة وتحديث السكور
+        // 3. Redraw obstacle and update score
         if (obsPos[i] < 0)
         {
-          // حساب مسافة عشوائية للعقبة الجديدة بناءً على مكان العقبة التانية
+          // Calculate random distance for new obstacle based on other obstacle position
           int otherObs = (i == 0) ? 1 : 0;
-          int gap = random(5, 9); // مسافة عشوائية بين 5 و 8 خطوات
+          int gap = random(5, 9); // Random gap between 5 and 8 steps
           obsPos[i] = max(15, obsPos[otherObs]) + gap;
 
           gameScore++;
@@ -348,20 +348,20 @@ void runDinoGame()
           lcd.print("S:");
           lcd.print(gameScore);
 
-          // تحسين: زيادة السرعة تدريجياً
+          // Improvement: Gradually increase speed
           if (currentSpeed > 150 && gameScore % 3 == 0)
           {
             currentSpeed -= 15;
           }
 
-          // تحسين: بيب احتفالي كل 5 نقط
+          // Improvement: Celebratory beep every 5 points
           if (gameScore % 2 == 0)
           {
             playBeep(50);
           }
         }
 
-        // 4. رسم العقبة في مكانها الجديد
+        // 4. Draw obstacle at its new position
         if (obsPos[i] >= 0 && obsPos[i] < 16)
         {
           lcd.setCursor(obsPos[i], 1);
@@ -369,7 +369,7 @@ void runDinoGame()
         }
       }
 
-      // 5. فيزياء النط
+      // 5. Jump physics
       if (jumpTimer > 0)
       {
         jumpTimer--;
@@ -381,7 +381,7 @@ void runDinoGame()
         }
       }
 
-      // 6. كشف التصادم (لو خبط في أي عقبة من الاتنين)
+      // 6. Collision detection (if hit any of the obstacles)
       if ((obsPos[0] == 1 || obsPos[1] == 1) && playerPos == 0)
       {
         lcd.setCursor(1, 1);
@@ -390,7 +390,7 @@ void runDinoGame()
         break;
       }
 
-      // 7. رسم الديناصور
+      // 7. Draw dinosaur
       if (playerPos == 1)
       {
         lcd.setCursor(1, 0);
@@ -408,10 +408,10 @@ void runDinoGame()
     }
   }
 
-  // --- شاشة النهاية (GAME OVER) ---
+  // --- Game Over Screen ---
   if (gameScore > highScore)
   {
-    highScore = gameScore; // حفظ أعلى سكور
+    highScore = gameScore; // Save high score
   }
 
   delay(500);
@@ -424,7 +424,7 @@ void runDinoGame()
 
   playGameOver();
 
-  delay(1000); // تأخير بسيط عشان مايخرجش فوراً
+  delay(1000); // delay before showing retry options
   lcd.clear();
   lcd.print("Score:");
   lcd.print(gameScore);
@@ -434,22 +434,22 @@ void runDinoGame()
   lcd.setCursor(0, 1);
   lcd.print("1:Retry  2:Menu ");
 
-  // تنظيف أي ضغطات معلقة بالغلط وقت الخسارة
+  // wait for any key release to avoid immediate re-triggering
   while (getKeyNonBlocking() != '\0')
     ;
 
-  // انتظار اختيار اللاعب
+  // retry or menu
   while (true)
   {
     char choice = getKeyNonBlocking();
     if (choice == '1')
     {
-      currentState = DINO_GAME; // يعيد اللعبة فوراً
+      currentState = DINO_GAME; //  start new game
       break;
     }
     else if (choice == '2')
     {
-      currentState = MENU; // يرجع للقائمة الرئيسية
+      currentState = MENU; // Return to main menu
       break;
     }
   }
