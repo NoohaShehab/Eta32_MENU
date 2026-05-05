@@ -2,8 +2,6 @@
 #include <LiquidCrystal.h>
 #include "MACROS.h"
 #include <stdio.h>
-// freq 1600000
-#define F_CPU 16000000UL
 #include <util/delay.h>
 
 // --- Correct Mapping for Eta32mini + MightyCore Standard Pinout ---
@@ -23,7 +21,7 @@ char keys[4][4] = {
     {'*', '0', '#', 'D'}};
 
 // Output Pins (Eta32mini):
-#define BUZZER_PIN 21   // Buzzer on PC5 (Arduino Pin 21) - with DIP switch
+#define BUZZER_PIN 21 // Buzzer on PC5 (Arduino Pin 21) - with DIP switch
 
 // ===== CUSTOM CHARACTERS =====
 // Player character (bird-like)
@@ -247,6 +245,7 @@ void runTimer()
   lcd.print("Timer Running");
   lcd.setCursor(0, 1);
   int displayValue = totalSeconds;
+  unsigned long lastUpdate = millis();  // ✅ Initialize timer
 
   while (displayValue >= 0)
   {
