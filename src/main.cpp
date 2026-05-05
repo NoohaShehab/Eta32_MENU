@@ -10,11 +10,11 @@
 // LCD Pins: RS=25(PA1), EN=26(PA2), D4=27(PA3), D5=28(PA4), D6=29(PA5), D7=30(PA6)
 LiquidCrystal lcd(25, 26, 27, 28, 29, 30);
 
-// Keypad Pins[cite: 2]:
-// Rows (PC4-PC7) -> Arduino Pins {20, 21, 22, 23}
-// Cols (PD2-PD5) -> Arduino Pins {10, 11, 12, 13}
-const int rowPins[4] = {20, 21, 22, 23};
-const int colPins[4] = {10, 11, 12, 13};
+// Keypad Pins (Eta32mini):
+// Rows (PB4-PB7) -> Arduino Pins {12, 13, 14, 15}
+// Cols (PD2-PD5) -> Arduino Pins {2, 3, 4, 5}
+const int rowPins[4] = {12, 13, 14, 15};
+const int colPins[4] = {2, 3, 4, 5};
 
 char keys[4][4] = {
     {'1', '2', '3', 'A'},
@@ -22,14 +22,8 @@ char keys[4][4] = {
     {'7', '8', '9', 'C'},
     {'*', '0', '#', 'D'}};
 
-// Output Pins[cite: 1, 2]:
-#define BUZZER_PIN 21  // Buzzer on PC5 (Arduino Pin 21)
-#define DIG1_ENABLE 22 // Digit 1 Common on PC6 (Arduino Pin 22)
-#define DIG2_ENABLE 23 // Digit 2 Common on PC7 (Arduino Pin 23)
-
-// 7-Segment Map for Numbers 0-9 (Common Cathode)
-// Segments are on Port A: A=PA1, B=PA2, C=PA3, D=PA4, E=PA5, F=PA6, G=PA7
-unsigned char seg_map[] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};
+// Output Pins (Eta32mini):
+#define BUZZER_PIN 19   // Buzzer on PC5 (Arduino Pin 19) - with DIP switch
 
 // ===== CUSTOM CHARACTERS =====
 // Player character (bird-like)
@@ -62,7 +56,6 @@ const int JUMP_HEIGHT = 1;
 char getKey();
 char getKeyNonBlocking();
 void runTimer();
-void displayOn7Seg(int val);
 void runDinoGame();
 void showMenu();
 void playBeep(int duration);
@@ -75,13 +68,10 @@ void setup()
   lcd.createChar(0, player);
   lcd.createChar(1, obstacle);
 
-  // Initializing Outputs[cite: 1, 2]
-  DDRB = 0xFF; // Port B for Segments (and PB0 for Dot)
-  pinMode(DIG1_ENABLE, OUTPUT);
-  pinMode(DIG2_ENABLE, OUTPUT);
+  // Initializing Outputs
   pinMode(BUZZER_PIN, OUTPUT);
 
-  // Initialize Keypad Pins[cite: 2]
+  // Initialize Keypad Pins
   for (int i = 0; i < 4; i++)
   {
     pinMode(rowPins[i], OUTPUT);
@@ -196,35 +186,6 @@ char getKeyNonBlocking()
   return '\0';
 }
 
-// --- 2-Digit Multiplexing for 7-Segment ---
-void displayOn7Seg(int val)
-{
-  // Ensure value is 0-99
-  if (val > 99)
-    val = 99;
-  if (val < 0)
-    val = 0;
-
-  int tens = val / 10;
-  int units = val % 10;
-
-  // Show Tens on Digit 1
-  PORTA = seg_map[tens] << 1;      // Shifting because segments start at PA1
-  digitalWrite(DIG1_ENABLE, HIGH); // FARES Kit uses NPN transistors (Active High)
-  digitalWrite(DIG2_ENABLE, LOW);
-  delayMicroseconds(500);
-
-  // Show Units on Digit 2
-  PORTA = seg_map[units] << 1;
-  digitalWrite(DIG1_ENABLE, LOW);
-  digitalWrite(DIG2_ENABLE, HIGH);
-  delayMicroseconds(500);
-  
-  // Turn off both digits at end for clean display
-  digitalWrite(DIG1_ENABLE, LOW);
-  digitalWrite(DIG2_ENABLE, LOW);
-}
-
 // --- Buzzer Functions ---
 void playBeep(int duration)
 {
@@ -284,11 +245,9 @@ void runTimer()
 
   while (displayValue >= 0)
   {
-    // Keep multiplexing the 7-segment display
+    // Keep checking for key press
     for (int i = 0; i < 40; i++)
-    { // Updates display ~40 times per second
-      displayOn7Seg(displayValue);
-
+    { // Check input ~40 times per second
       // Check for key press to cancel
       char key = getKeyNonBlocking();
       if (key == 'A' || key == 'D')
@@ -311,8 +270,8 @@ void runTimer()
         if (displayValue < 10)
           lcd.print("0");
         lcd.print(displayValue);
-        lcd.print("s  ");  // Extra spaces to clear old text
-        delay(100); // Delay to let LCD update properly
+        lcd.print("s  "); // Extra spaces to clear old text
+        delay(100);       // Delay to let LCD update properly
 
         displayValue--;
         lastUpdate = millis();
@@ -325,7 +284,6 @@ void runTimer()
   // Time's up!
   lcd.clear();
   lcd.print("TIME'S UP!");
-  displayOn7Seg(0);
 
   playGameOver(); // 3 beeps
   delay(500);
@@ -473,12 +431,6 @@ void resetAll()
   // Clear LCD display completely
   lcd.clear();
   lcd.home(); // Move cursor to (0,0)
-
-  // Clear 7-segment display (show 00)
-  PORTA = seg_map[0] << 1;
-  digitalWrite(DIG1_ENABLE, LOW);
-  digitalWrite(DIG2_ENABLE, LOW);
-  delayMicroseconds(100);
 
   // Ensure buzzer is OFF
   digitalWrite(BUZZER_PIN, LOW);
