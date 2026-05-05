@@ -294,7 +294,7 @@ void runDinoGame()
   playerPos = 0;
   jumpTimer = 0;
   gameScore = 0;
-  currentSpeed = 30; // سرعة البداية (في بروتس ممكن تقلليها لـ 15 لو بطيئة)
+  currentSpeed = 150; // سرعة البداية (في بروتس ممكن تقلليها لـ 15 لو بطيئة)
   obsPos[0] = 15;
   obsPos[1] = 23; // العقبة التانية بتيجي بعدها بمسافة
   lastGameUpdate = millis();
@@ -349,9 +349,9 @@ void runDinoGame()
           lcd.print(gameScore);
 
           // تحسين: زيادة السرعة تدريجياً
-          if (currentSpeed > 5 && gameScore % 3 == 0)
+          if (currentSpeed > 150 && gameScore % 3 == 0)
           {
-            currentSpeed -= 2;
+            currentSpeed -= 15;
           }
 
           // تحسين: بيب احتفالي كل 5 نقط
@@ -424,22 +424,35 @@ void runDinoGame()
 
   playGameOver();
 
-  // تحسين: انتظار ضغطة زرار عشان ترجعي للمنيو
-  delay(1000); // تأخير بسيط عشان مايخرجش فوراً لو كنتي بتدوسي جامد
+  delay(1000); // تأخير بسيط عشان مايخرجش فوراً
   lcd.clear();
-  lcd.print("GAME OVER! S:");
+  lcd.print("Score:");
   lcd.print(gameScore);
-  lcd.setCursor(0, 1);
-  lcd.print("Press Any Key...");
+  lcd.print(" High:");
+  lcd.print(highScore);
 
-  // تنظيف أي ضغطات معلقة
+  lcd.setCursor(0, 1);
+  lcd.print("1:Retry  2:Menu ");
+
+  // تنظيف أي ضغطات معلقة بالغلط وقت الخسارة
   while (getKeyNonBlocking() != '\0')
     ;
-  // انتظار ضغطة جديدة
-  while (getKeyNonBlocking() == '\0')
-    ;
 
-  currentState = MENU;
+  // انتظار اختيار اللاعب
+  while (true)
+  {
+    char choice = getKeyNonBlocking();
+    if (choice == '1')
+    {
+      currentState = DINO_GAME; // يعيد اللعبة فوراً
+      break;
+    }
+    else if (choice == '2')
+    {
+      currentState = MENU; // يرجع للقائمة الرئيسية
+      break;
+    }
+  }
 }
 
 // ===== RESET FUNCTION =====
