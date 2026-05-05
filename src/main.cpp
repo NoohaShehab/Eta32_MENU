@@ -94,10 +94,11 @@ void setup()
 
   // Show welcome message
   lcd.clear();
+  delay(100); // Additional delay for LCD stability
   lcd.print("ProjectMp v2.0");
   lcd.setCursor(0, 1);
   lcd.print("Initializing...");
-  delay(1500);
+  delay(2000); // Longer delay for LCD initialization
 }
 
 void loop()
@@ -218,6 +219,10 @@ void displayOn7Seg(int val)
   digitalWrite(DIG1_ENABLE, LOW);
   digitalWrite(DIG2_ENABLE, HIGH);
   delayMicroseconds(500);
+  
+  // Turn off both digits at end for clean display
+  digitalWrite(DIG1_ENABLE, LOW);
+  digitalWrite(DIG2_ENABLE, LOW);
 }
 
 // --- Buzzer Functions ---
@@ -289,6 +294,7 @@ void runTimer()
       if (key == 'A' || key == 'D')
       {
         lcd.clear();
+        delay(50); // Ensure LCD clears properly
         lcd.print("Timer Cancelled!");
         playBeep(100);
         delay(1000);
@@ -299,12 +305,14 @@ void runTimer()
       // Check if 1 second has passed
       if (millis() - lastUpdate >= 1000)
       {
+        // Clear and rewrite the time display
         lcd.setCursor(0, 1);
         lcd.print("Time: ");
         if (displayValue < 10)
           lcd.print("0");
         lcd.print(displayValue);
-        lcd.print("s     ");
+        lcd.print("s  ");  // Extra spaces to clear old text
+        delay(100); // Delay to let LCD update properly
 
         displayValue--;
         lastUpdate = millis();
