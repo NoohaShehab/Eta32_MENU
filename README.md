@@ -1,29 +1,29 @@
-# 📱 ProjectMp v2.0 - ملخص المشروع الشامل
+# 📱 Eta32 Menu System v2.0 - Complete Project Summary
 
-## 🎯 نظرة عامة
+## 🎯 Overview
 
-**ProjectMp** هو مشروع متكامل على متحكم Arduino يجمع بين:
+**Eta32 Menu System** is a comprehensive Arduino project that combines:
 
-1. **مؤقت عداد تنازلي** مع عرض على 7-Segment
-2. **لعبة ديناصور** تفاعلية مع نظام نقاط
-
----
-
-## 🔧 المكونات المستخدمة
-
-| المكون           | الوصف             | الدبابيس                 |
-| ---------------- | ----------------- | ------------------------ |
-| **LCD 16x2**     | شاشة بلورية       | 25,26,27,28,29,30        |
-| **Keypad 4x4**   | لوحة مفاتيح       | Rows: 20-23, Cols: 10-13 |
-| **Buzzer**       | محرر صوت          | 21 (PC5)                 |
-| **7-Segment x2** | عرض رقمي          | DIG1: 22, DIG2: 23       |
-| **Port A**       | أرقام الـ Segment | متعدد                    |
+1. **Countdown Timer** with 7-Segment display output
+2. **Interactive Dinosaur Game** with point-based scoring system
 
 ---
 
-## 📊 هيكل البرنامج
+## 🔧 Hardware Components
 
-### State Machine
+| Component      | Description       | Pin Configuration        |
+| -------------- | ----------------- | ------------------------ |
+| **LCD 16x2**   | Character Display | 25,26,27,28,29,30        |
+| **Keypad 4x4** | Input Matrix      | Rows: 20-23, Cols: 10-13 |
+| **Buzzer**     | Audio Output      | 21 (PC5)                 |
+| **7-Segment x2** | Numeric Display | DIG1: 22, DIG2: 23       |
+| **Port A**     | Segment Lines     | Multiple                 |
+
+---
+
+## 📊 Program Architecture
+
+### State Machine Flow
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -37,156 +37,151 @@
 └─────────────────────────────────────────────┘
 ```
 
-### الحالات الثلاث:
+### Three Main States:
 
 ```
-MENU (القائمة الرئيسية)
+MENU (Main Menu)
  ├─→ '1' → TIMER_SETUP
  ├─→ '2' → DINO_GAME
  └─→ loop
 
-TIMER_SETUP (إدخال الوقت)
- ├─ اطلب الرقم الأول والثاني
- ├─ تحقق من الصحة
+TIMER_SETUP (Time Input)
+ ├─ Request first and second digit
+ ├─ Validate input
  ├─ (A/D) → MENU
- └─→ TIMER_RUN (مدمج)
+ └─→ TIMER_RUN (embedded)
 
-DINO_GAME (لعبة الديناصور)
- ├─ يقبل مدخلات غير متزامنة (Non-Blocking)
- ├─ يحدّث اللعبة كل 250ms
- ├─ (A/D) أو الاصطدام → MENU
- └─ عرض النقاط والنتيجة النهائية
+DINO_GAME (Game Loop)
+ ├─ Non-blocking input handling
+ ├─ Update game every 250ms
+ ├─ (A/D) or collision → MENU
+ └─ Display score and result
 ```
 
 ---
 
-## 🎮 الميزات المرئية
+## 🎮 Visual Features
 
-### شاشة LCD الرئيسية
+### Main LCD Display Screens
 
-#### 1. القائمة الرئيسية:
-
+#### 1. Main Menu:
 ```
 ==== MAIN MENU ====
 1:Timer  2:Game
 ```
 
-#### 2. إدخال المؤقت:
-
+#### 2. Timer Input:
 ```
 Enter Seconds:
 12
 ```
 
-#### 3. تشغيل المؤقت:
-
+#### 3. Timer Running:
 ```
 Timer Running...
 Time: 09s
 ```
+- 7-Segment Display: `09`
 
-- عرض 7-Segment: `09`
-
-#### 4. لعبة الديناصور:
-
+#### 4. Dinosaur Game:
 ```
 Score:05
-[طائر]▓▓▓
+[Bird]▓▓▓
 ```
 
 ---
 
-## 🎵 نظام الأصوات
+## 🎵 Audio System
 
-### الأصوات المختلفة:
+### Sound Events:
 
-| الحدث         | الصيغة     | الدالة           |
-| ------------- | ---------- | ---------------- |
-| عند القفز     | بيب (50ms) | `playBeep(50)`   |
-| انتهاء المؤقت | 3 + 1 بيب  | `playGameOver()` |
-| نهاية اللعبة  | 3 بيبات    | `playGameOver()` |
+| Event          | Format      | Function         |
+| -------------- | ----------- | ---------------- |
+| Jump Sound     | Beep (50ms) | `playBeep(50)`   |
+| Timer Complete | 3 + 1 Beep  | `playGameOver()` |
+| Game Over      | 3 Beeps     | `playGameOver()` |
 
 ---
 
-## 🎮 منطق اللعبة
+## 🎮 Game Logic
 
-### متغيرات اللعبة:
+### Game Variables:
 
 ```cpp
-int playerPos = 0;           // 0 = أرض, 1 = هواء
-int gameScore = 0;           // النقاط الحالية
-int obsPos = 15;             // موضع العقبة (0-15)
-unsigned long lastGameUpdate; // آخر وقت تحديث
-const int GAME_SPEED = 250;  // سرعة اللعبة (ms)
+int playerPos = 0;           // 0 = ground, 1 = jumping
+int gameScore = 0;           // Current points
+int obsPos = 15;             // Obstacle position (0-15)
+unsigned long lastGameUpdate; // Last update time
+const int GAME_SPEED = 250;  // Game speed in ms
 ```
 
-### آلية اللعب:
+### Game Mechanics:
 
 ```
-كل 250ms:
-├─ تحرك العقبة يساراً (obsPos--)
-├─ تحقق من الاصطدام
-├─ زد النقاط عند تجاوز عقبة
-└─ أعد رسم الشاشة
+Every 250ms:
+├─ Move obstacle left (obsPos--)
+├─ Check for collision
+├─ Increment score on obstacle pass
+└─ Redraw screen
 
-عند الضغط على زر:
-└─ اجعل اللاعب يقفز (playerPos = 1)
-   بعد 250ms → سقوط (playerPos = 0)
+On Button Press:
+└─ Make player jump (playerPos = 1)
+   After 250ms → Fall (playerPos = 0)
 
-الاصطدام يحدث إذا:
+Collision occurs when:
 └─ obsPos == 0 && playerPos == 0
 ```
 
 ---
 
-## 📝 الدوال الرئيسية
+## 📝 Core Functions
 
-### دوال الحالة:
+### State Functions:
 
-| الدالة          | الوصف                |
-| --------------- | -------------------- |
-| `showMenu()`    | عرض القائمة الرئيسية |
-| `runTimer()`    | تشغيل المؤقت         |
-| `runDinoGame()` | تشغيل لعبة الديناصور |
+| Function        | Description              |
+| --------------- | ------------------------ |
+| `showMenu()`    | Display main menu        |
+| `runTimer()`    | Execute timer mode       |
+| `runDinoGame()` | Execute game mode        |
 
-### دوال المدخلات:
+### Input Functions:
 
-| الدالة                | الوصف                           |
-| --------------------- | ------------------------------- |
-| `getKey()`            | قراءة المفتاح (مانع - blocking) |
-| `getKeyNonBlocking()` | قراءة المفتاح (غير مانع)        |
+| Function              | Description                |
+| --------------------- | -------------------------- |
+| `getKey()`            | Read key (blocking)        |
+| `getKeyNonBlocking()` | Read key (non-blocking)    |
 
-### دوال العرض:
+### Display Functions:
 
-| الدالة               | الوصف                 |
-| -------------------- | --------------------- |
-| `displayOn7Seg(int)` | عرض رقم على 7-Segment |
-| `playBeep(int)`      | بيب صوت مفرد          |
-| `playGameOver()`     | 3 بيبات متتالية       |
+| Function             | Description              |
+| -------------------- | ------------------------ |
+| `displayOn7Seg(int)` | Display number on 7-Seg  |
+| `playBeep(int)`      | Single beep sound        |
+| `playGameOver()`     | Game over sound effect   |
 
 ---
 
-## 📊 مخطط التوقيت
+## 📊 Timing Diagram
 
 ```
 TIMER MODE:
-├─ إدخال: انتظر blocking inputs
-├─ التشغيل: حدّث كل 1000ms
-├─ العرض: Multiplex 7-Seg 40x/sec
-└─ الخروج: المفاتيح A/D
+├─ Input: Wait for blocking input
+├─ Running: Update every 1000ms
+├─ Display: Multiplex 7-Seg 40x/sec
+└─ Exit: Keys A/D
 
 DINO MODE:
-├─ إدخال: قراءة غير مانعة (Non-blocking)
-├─ التحديث: كل 250ms
-├─ العرض: كل 10ms
-└─ الخروج: المفاتيح A/D أو اصطدام
+├─ Input: Non-blocking key read
+├─ Update: Every 250ms
+├─ Display: Every 10ms
+└─ Exit: Keys A/D or collision
 ```
 
 ---
 
-## 🎨 الأحرف المخصصة (Custom Characters)
+## 🎨 Custom Characters
 
-### الكائن اللاعب (Player):
+### Player Character:
 
 ```cpp
 byte player[8] = {
@@ -201,7 +196,7 @@ byte player[8] = {
 };
 ```
 
-### العقبة (Obstacle):
+### Obstacle Character (Tree):
 
 ```cpp
 byte obstacle[8] = {
@@ -218,47 +213,47 @@ byte obstacle[8] = {
 
 ---
 
-## 🔄 دورة الحياة الكاملة
+## 🔄 Complete Lifecycle
 
 ```
-التشغيل (Startup)
+Startup (Startup)
     ↓
 ┌──────────────────────────────┐
-│  initialize() في setup()     │
-│  - إعداد LCD                 │
-│  - إعداد الأحرف المخصصة    │
-│  - تهيئة المفاتيح          │
-│  - رسالة ترحيب             │
+│  initialize() in setup()     │
+│  - Initialize LCD            │
+│  - Load custom characters    │
+│  - Setup keypad pins         │
+│  - Display welcome message   │
 └──────────────────────────────┘
     ↓
-حلقة البرنامج الرئيسية
+Main Program Loop
     ↓
 ┌──────────────────────────────┐
-│  showMenu() - loop مستمر    │
-│  اعرض "1:Timer  2:Game"    │
-│  انتظر المدخلات             │
+│  showMenu() - continuous     │
+│  Display "1:Timer  2:Game"   │
+│  Wait for input              │
 └──────────────────────────────┘
     ↓
 ┌──────────────────────────────────────────┐
-│  حسب المدخل:                             │
+│  Based on input:                         │
 │  ('1') → runTimer()                     │
-│         → إدخال الوقت                  │
-│         → عرض المؤقت                   │
-│         → العودة للقائمة              │
-│  ('2') → runDinoGame()                 │
-│         → تشغيل اللعبة                 │
-│         → حساب النقاط                  │
-│         → العودة للقائمة              │
+│         → Get time input                │
+│         → Display countdown             │
+│         → Return to menu                │
+│  ('2') → runDinoGame()                  │
+│         → Launch game                   │
+│         → Calculate points              │
+│         → Return to menu                │
 └──────────────────────────────────────────┘
     ↓
-العودة للحلقة الرئيسية
+Return to Main Loop
 ```
 
 ---
 
-## 🐛 معالجة الأخطاء
+## 🐛 Error Handling
 
-### المدخلات غير الصحيحة:
+### Invalid Input Validation:
 
 ```cpp
 if (totalSeconds <= 0 || totalSeconds > 99) {
@@ -271,36 +266,36 @@ if (totalSeconds <= 0 || totalSeconds > 99) {
 }
 ```
 
-### تجنب التداخل:
+### Preventing Display Conflicts:
 
-- كل حالة لها LCD خاصة بها
-- لا يوجد كتابة متزامنة
-- Debounce: 30ms لكل مفتاح
-
----
-
-## 📈 الأداء والتحسينات
-
-### الأداء الحالي:
-
-- **تحديث اللعبة**: 250ms (4 fps معقول)
-- **تحديث 7-Segment**: 40 مرة/ثانية
-- **استجابة المفاتيح**: <100ms
-- **استهلاك الذاكرة**: منخفض (~400 بايت)
-
-### التحسينات الممكنة:
-
-- [ ] مستويات صعوبة مختلفة
-- [ ] حفظ النقاط في EEPROM
-- [ ] رسوميات متقدمة
-- [ ] أصوات متنوعة
-- [ ] شاشات انتقال متحركة
+- Each state has its own LCD scope
+- No concurrent writes
+- 30ms debounce per keypress
 
 ---
 
-## 🔌 التوصيلات السريعة
+## 📈 Performance Metrics
 
-### LCD (4-bit Mode):
+### Current Performance:
+
+- **Game Update**: 250ms (4 fps - reasonable)
+- **7-Segment Update**: 40 times/second
+- **Keypress Response**: <100ms
+- **Memory Usage**: Low (~400 bytes)
+
+### Possible Improvements:
+
+- [ ] Multiple difficulty levels
+- [ ] EEPROM score persistence
+- [ ] Advanced graphics
+- [ ] Sound variety
+- [ ] Animated transitions
+
+---
+
+## 🔌 Wiring Diagram
+
+### LCD 4-bit Mode Connection:
 
 ```
 LCD RS   → Pin 25 (PA1)
@@ -313,7 +308,7 @@ LCD GND  → GND
 LCD VCC  → 5V
 ```
 
-### Keypad:
+### Keypad Matrix:
 
 ```
 Row 0 → Pin 20 (PC4)
@@ -337,46 +332,74 @@ Buzzer      → Pin 21 (PC5)
 
 ---
 
-## 📚 الملفات والوثائق
+## 📚 Project Files
 
-| الملف             | الوصف                       |
-| ----------------- | --------------------------- |
-| `main.cpp`        | البرنامج الرئيسي (~500 سطر) |
-| `MACROS.h`        | ماكروهات البتات             |
-| `IMPROVEMENTS.md` | قائمة التحسينات والإصلاحات  |
-| `QUICK_START.md`  | دليل الاستخدام السريع       |
-| `README.md`       | هذا الملف (الملخص الشامل)   |
+| File          | Description                 |
+| ------------- | --------------------------- |
+| `main.cpp`    | Main program (~500 lines)   |
+| `MACROS.h`    | Bit manipulation macros     |
+| `platformio.ini` | PlatformIO configuration |
 
 ---
 
-## ✅ اختبار البرنامج
+## ✅ Testing Checklist
 
-### قائمة الاختبار:
-
-- [ ] LCD يعرض القائمة الرئيسية
-- [ ] الأزرار تستجيب بشكل صحيح
-- [ ] المؤقت يعد تنازلياً
-- [ ] 7-Segment يعرض الأرقام
-- [ ] Buzzer يصدر صوتاً
-- [ ] لعبة الديناصور تعمل
-- [ ] القفز يتجنب العقبات
-- [ ] النقاط تزداد بشكل صحيح
-- [ ] الخروج برز A/D يعمل
-- [ ] لا توجد أخطاء تجميع
+- [ ] LCD displays main menu correctly
+- [ ] All buttons respond properly
+- [ ] Timer counts down accurately
+- [ ] 7-Segment displays numbers
+- [ ] Buzzer produces sound
+- [ ] Dinosaur game runs smoothly
+- [ ] Jump avoids obstacles correctly
+- [ ] Score increments properly
+- [ ] Exit keys (A/D) work
+- [ ] No compilation errors
 
 ---
 
-## 🎉 النتيجة النهائية
+## 🎉 Final Results
 
-✅ **كود منظم وخالي من الأخطاء**
-✅ **لا توجد مشاكل تداخل الشاشات**
-✅ **لعبة تفاعلية وممتعة**
-✅ **مؤقت يعمل بدقة**
-✅ **إمكانية التطوير والتحسين**
+✅ **Clean, error-free code**  
+✅ **No screen display conflicts**  
+✅ **Interactive and fun game**  
+✅ **Accurate timer functionality**  
+✅ **Extensible and maintainable**  
 
 ---
 
-**المطور**: ProjectMp Team  
-**التاريخ**: 5 مايو 2026  
-**الإصدار**: 2.0 (نهائي)  
-**الحالة**: ✅ جاهز للإنتاج
+## 📦 Technologies & Libraries
+
+- **Platform**: Arduino ATmega328P (Eta32mini compatible)
+- **IDE**: PlatformIO
+- **Libraries**: LiquidCrystal (built-in)
+- **Language**: C++
+
+---
+
+## 🚀 Quick Start
+
+1. **Build**: `pio run -e default`
+2. **Upload**: `pio run --target upload`
+3. **Monitor**: `pio device monitor`
+
+---
+
+## 📋 Usage
+
+### Timer Mode:
+- Press `1` → Enter seconds (00-99)
+- Watch countdown on LCD and 7-Segment
+- Press `A` or `D` to cancel
+
+### Game Mode:
+- Press `2` → Game starts
+- Press any button to jump
+- Avoid obstacles and collect points
+- Press `A` or `D` to exit
+
+---
+
+**Developer**: Noha Shehab  
+**Date**: May 5, 2026  
+**Version**: 2.0 (Final)  
+**Status**: ✅ Production Ready
