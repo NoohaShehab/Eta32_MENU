@@ -195,15 +195,24 @@ void runTimer()
   lcd.print("Enter Seconds:");
   delay(1500);
 
+  // --- New UX improvement for input display ---
   lcd.clear();
   delay(50);
-  lcd.print("Input: ");
+  lcd.print("Input Time:");
   lcd.setCursor(0, 1);
+  lcd.print("    [ - - ]"); // Visual format user will see
 
+  // Wait for first digit
   char s1 = getKey();
+  lcd.setCursor(6, 1); // Move cursor to first position
   lcd.print(s1);
+
+  // Wait for second digit
   char s2 = getKey();
+  lcd.setCursor(8, 1); // Move cursor to second position
   lcd.print(s2);
+
+  delay(400); // Brief delay so user can see both digits before timer starts
 
   int totalSeconds = ((s1 - '0') * 10) + (s2 - '0');
 
