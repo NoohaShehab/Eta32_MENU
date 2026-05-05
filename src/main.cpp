@@ -23,7 +23,7 @@ char keys[4][4] = {
     {'*', '0', '#', 'D'}};
 
 // Output Pins (Eta32mini):
-#define BUZZER_PIN 19 // Buzzer on PC5 (Arduino Pin 19) - with DIP switch
+#define BUZZER_PIN 21   // Buzzer on PC5 (Arduino Pin 21) - with DIP switch
 
 // ===== CUSTOM CHARACTERS =====
 // Player character (bird-like)
