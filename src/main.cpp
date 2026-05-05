@@ -23,7 +23,7 @@ char keys[4][4] = {
     {'*', '0', '#', 'D'}};
 
 // Output Pins (Eta32mini):
-#define BUZZER_PIN 19   // Buzzer on PC5 (Arduino Pin 19) - with DIP switch
+#define BUZZER_PIN 19 // Buzzer on PC5 (Arduino Pin 19) - with DIP switch
 
 // ===== CUSTOM CHARACTERS =====
 // Player character (bird-like)
@@ -87,7 +87,7 @@ void setup()
   delay(100); // Additional delay for LCD stability
   lcd.print("ProjectMp v2.0");
   lcd.setCursor(0, 1);
-  lcd.print("Initializing...");
+  lcd.print("Starting...");
   delay(2000); // Longer delay for LCD initialization
 }
 
@@ -113,7 +113,7 @@ void loop()
 void showMenu()
 {
   lcd.clear();
-  lcd.print("==== MAIN MENU ====");
+  lcd.print("** MAIN MENU **");
   lcd.setCursor(0, 1);
   lcd.print("1:Timer  2:Game");
   delay(200);
@@ -208,13 +208,15 @@ void runTimer()
 {
   // Input time
   lcd.clear();
-  lcd.print("Enter Seconds:");
+  delay(100);
+  lcd.print("Timer Mode");
   lcd.setCursor(0, 1);
-  lcd.print("(0-99) Max 2 Dig");
+  lcd.print("Enter Seconds:");
   delay(1500);
 
   lcd.clear();
-  lcd.print("Press Keys: ");
+  delay(50);
+  lcd.print("Input: ");
   lcd.setCursor(0, 1);
 
   char s1 = getKey();
@@ -227,7 +229,10 @@ void runTimer()
   if (totalSeconds <= 0 || totalSeconds > 99)
   {
     lcd.clear();
-    lcd.print("Invalid Input!");
+    delay(50);
+    lcd.print("Invalid!");
+    lcd.setCursor(0, 1);
+    lcd.print("(1-99 only)");
     playBeep(200);
     delay(1500);
     currentState = MENU;
@@ -238,9 +243,9 @@ void runTimer()
 
   // Timer running
   lcd.clear();
-  lcd.print("Timer Running...");
-
-  unsigned long lastUpdate = millis();
+  delay(50);
+  lcd.print("Timer Running");
+  lcd.setCursor(0, 1);
   int displayValue = totalSeconds;
 
   while (displayValue >= 0)
@@ -254,7 +259,9 @@ void runTimer()
       {
         lcd.clear();
         delay(50); // Ensure LCD clears properly
-        lcd.print("Timer Cancelled!");
+        lcd.print("Cancelled");
+        lcd.setCursor(0, 1);
+        lcd.print("Going to Menu");
         playBeep(100);
         delay(1000);
         currentState = MENU;
@@ -283,7 +290,10 @@ void runTimer()
 
   // Time's up!
   lcd.clear();
-  lcd.print("TIME'S UP!");
+  delay(50);
+  lcd.print("** TIME UP **");
+  lcd.setCursor(0, 1);
+  lcd.print("Well Done!");
 
   playGameOver(); // 3 beeps
   delay(500);
@@ -297,9 +307,10 @@ void runTimer()
 void runDinoGame()
 {
   lcd.clear();
-  lcd.print("Dinosaur Game!");
+  delay(50);
+  lcd.print("Game Starting");
   lcd.setCursor(0, 1);
-  lcd.print("Jump with Btn");
+  lcd.print("Press to Jump");
   delay(1500);
 
   // Game loop
@@ -364,11 +375,11 @@ void runDinoGame()
 
     // Draw game
     lcd.setCursor(0, 0);
-    lcd.print("Score:");
+    lcd.print("S:");
     if (gameScore < 10)
       lcd.print("0");
     lcd.print(gameScore);
-    lcd.print("      ");
+    lcd.print(" ");
 
     // Draw player (position 1)
     lcd.setCursor(1, 1);
@@ -401,12 +412,14 @@ void runDinoGame()
 
   // Game Over Screen
   lcd.clear();
-  lcd.print("GAME OVER!");
+  delay(50);
+  lcd.print("** GAME OVER **");
   lcd.setCursor(0, 1);
-  lcd.print("Score: ");
+  lcd.print("Score:");
   if (gameScore < 10)
     lcd.print("0");
   lcd.print(gameScore);
+  lcd.print("    ");
 
   playGameOver();
   delay(1500);
