@@ -3,6 +3,7 @@
 #include "MACROS.h"
 #include <stdio.h>
 #include <util/delay.h>
+#define F_CPU 16000000UL
 
 // --- Correct Mapping for Eta32mini + MightyCore Standard Pinout ---
 // LCD Pins: RS=25(PA1), EN=26(PA2), D4=27(PA3), D5=28(PA4), D6=29(PA5), D7=30(PA6)
@@ -47,7 +48,9 @@ int playerPos = 0; // 0 = ground, 1 = jumping
 int gameScore = 0;
 int obsPos = 15;
 unsigned long lastGameUpdate = 0;
-const int GAME_SPEED = 250; // milliseconds
+// gameplay timing
+int prevObsPos = -1; // previous obstacle column (for clearing)
+const int GAME_SPEED = 320; // milliseconds (slightly slower for readability)
 const int JUMP_HEIGHT = 1;
 
 // --- Function Prototypes ---
@@ -245,7 +248,7 @@ void runTimer()
   lcd.print("Timer Running");
   lcd.setCursor(0, 1);
   int displayValue = totalSeconds;
-  unsigned long lastUpdate = millis();  // ✅ Initialize timer
+  unsigned long lastUpdate = millis(); // ✅ Initialize timer
 
   while (displayValue >= 0)
   {
@@ -345,6 +348,9 @@ void runDinoGame()
     // Update game state every GAME_SPEED ms
     if (millis() - lastGameUpdate >= GAME_SPEED)
     {
+      // store previous obstacle column for later clearing
+      prevObsPos = obsPos;
+
       // Move obstacle left
       obsPos--;
 
@@ -372,7 +378,15 @@ void runDinoGame()
       lastGameUpdate = millis();
     }
 
-    // Draw game
+    // Draw game (clear previous obstacle then draw obstacle first so player is visible)
+    // Clear previous obstacle cell if it moved
+    if (prevObsPos >= 0 && prevObsPos < 16 && prevObsPos != obsPos)
+    {
+      lcd.setCursor(prevObsPos, 1);
+      lcd.print(" ");
+    }
+
+    // Score
     lcd.setCursor(0, 0);
     lcd.print("S:");
     if (gameScore < 10)
@@ -380,33 +394,33 @@ void runDinoGame()
     lcd.print(gameScore);
     lcd.print(" ");
 
-    // Draw player (position 1)
-    lcd.setCursor(1, 1);
-    if (playerPos == 0)
-    {
-      lcd.write(byte(0)); // Player on ground
-    }
-    else
-    {
-      lcd.print(" "); // Player jumping
-    }
-
-    // Draw player in air if jumping
-    if (playerPos > 0)
-    {
-      lcd.setCursor(1, 0);
-      lcd.write(byte(0)); // Player in air
-    }
-
-    // Draw obstacle
+    // Draw obstacle first (so player appears on top)
     if (obsPos >= 0 && obsPos < 16)
     {
       lcd.setCursor(obsPos, 1);
       lcd.write(byte(1)); // Obstacle
     }
 
-    // Clear the display for next iteration
-    delay(10);
+    // Draw player: if jumping show at top row, else on bottom row
+    if (playerPos > 0)
+    {
+      // clear ground cell
+      lcd.setCursor(1, 1);
+      lcd.print(" ");
+      lcd.setCursor(1, 0);
+      lcd.write(byte(0)); // Player in air
+    }
+    else
+    {
+      // ensure top cell cleared
+      lcd.setCursor(1, 0);
+      lcd.print(" ");
+      lcd.setCursor(1, 1);
+      lcd.write(byte(0)); // Player on ground
+    }
+
+    // Small delay for frame stability
+    delay(30);
   }
 
   // Game Over Screen
