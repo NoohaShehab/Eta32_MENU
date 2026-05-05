@@ -10,11 +10,11 @@
 // LCD Pins: RS=25(PA1), EN=26(PA2), D4=27(PA3), D5=28(PA4), D6=29(PA5), D7=30(PA6)
 LiquidCrystal lcd(25, 26, 27, 28, 29, 30);
 
-// Keypad Pins (Eta32mini):
-// Rows (PB4-PB7) -> Arduino Pins {12, 13, 14, 15}
-// Cols (PD2-PD5) -> Arduino Pins {2, 3, 4, 5}
-const int rowPins[4] = {12, 13, 14, 15};
-const int colPins[4] = {2, 3, 4, 5};
+// Keypad Pins (Eta32mini - from PDF):
+// Rows (PB4-PB7) -> Arduino Pins {4, 5, 6, 7}
+// Cols (PD2-PD5) -> Arduino Pins {10, 11, 12, 13}
+const int rowPins[4] = {4, 5, 6, 7};
+const int colPins[4] = {10, 11, 12, 13};
 
 char keys[4][4] = {
     {'1', '2', '3', 'A'},
