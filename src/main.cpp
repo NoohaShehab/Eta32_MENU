@@ -2,6 +2,9 @@
 #include <LiquidCrystal.h>
 #include "MACROS.h"
 #include <stdio.h>
+// freq 1600000
+#define F_CPU 16000000UL
+#include <util/delay.h>
 
 // --- Correct Mapping for Eta32mini + MightyCore Standard Pinout ---
 // LCD Pins: RS=25(PA1), EN=26(PA2), D4=27(PA3), D5=28(PA4), D6=29(PA5), D7=30(PA6)
@@ -64,6 +67,7 @@ void runDinoGame();
 void showMenu();
 void playBeep(int duration);
 void playGameOver();
+void resetAll();
 
 void setup()
 {
@@ -84,6 +88,9 @@ void setup()
     digitalWrite(rowPins[i], HIGH);
     pinMode(colPins[i], INPUT_PULLUP);
   }
+
+  // Reset all variables
+  resetAll();
 
   // Show welcome message
   lcd.clear();
@@ -439,4 +446,40 @@ void runDinoGame()
   delay(1500);
 
   currentState = MENU;
+}
+
+// ===== RESET FUNCTION =====
+// This function is called when the device is reset (power on or RESET button)
+// It ensures all variables and hardware are properly initialized
+void resetAll()
+{
+  // Reset all game variables
+  currentState = MENU;
+  playerPos = 0;
+  gameScore = 0;
+  obsPos = 15;
+  lastGameUpdate = millis();
+  keyPressFlag = false;
+  pressedKey = '\0';
+
+  // Clear LCD display completely
+  lcd.clear();
+  lcd.home(); // Move cursor to (0,0)
+
+  // Clear 7-segment display (show 00)
+  PORTA = seg_map[0] << 1;
+  digitalWrite(DIG1_ENABLE, LOW);
+  digitalWrite(DIG2_ENABLE, LOW);
+  delayMicroseconds(100);
+
+  // Ensure buzzer is OFF
+  digitalWrite(BUZZER_PIN, LOW);
+
+  // Reset keypad pins to initial state
+  for (int i = 0; i < 4; i++)
+  {
+    digitalWrite(rowPins[i], HIGH);
+  }
+
+  delay(100); // Small delay for all hardware to stabilize
 }
