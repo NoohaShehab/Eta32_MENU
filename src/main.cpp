@@ -18,7 +18,7 @@
 LiquidCrystal lcd(25, 26, 27, 28, 29, 30);
 const uint8_t rowBits[4] = {4, 5, 6, 7}; // PB4, PB5, PB6, PB7
 const uint8_t colBits[4] = {2, 3, 4, 5}; // PD2, PD3, PD4, PD5
-const uint8_t buzzerBit = PC0;
+const uint8_t buzzerBit = 21;
 const char keys[4][4] = {
     {'1', '2', '3', 'A'},
     {'4', '5', '6', 'B'},
