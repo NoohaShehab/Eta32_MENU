@@ -7,72 +7,73 @@
 
 // --- Correct Mapping for Eta32mini + MightyCore Standard Pinout ---
 LiquidCrystal lcd(25, 26, 27, 28, 29, 30);
-
 // Keypad Pins
 const int rowPins[4] = {4, 5, 6, 7};
 const int colPins[4] = {10, 11, 12, 13};
-
 char keys[4][4] = {
     {'1', '2', '3', 'A'},
     {'4', '5', '6', 'B'},
     {'7', '8', '9', 'C'},
     {'*', '0', '#', 'D'}};
-
 #define BUZZER_PIN 21
-
 // ===== CUSTOM CHARACTERS =====
-byte player[8] = {B00111, B00101, B00111, B10110, B11111, B01110, B01010, B00000};
-byte obstacle[8] = {B00100, B00101, B10101, B10111, B11100, B00100, B00100, B00000};
+byte player[8] = {B00111, B00101, B00111, B10110, B11111, B01110, B01010, B00000};   // Dino
+byte obstacle[8] = {B00100, B00101, B10101, B10111, B11100, B00100, B00100, B00000}; // Cactus
+byte alien[8] = {B10001, B01010, B11111, B10101, B11111, B01010, B10001, B00000};    // Classic Alien
+byte ship[8] = {B00100, B01110, B11111, B10101, B00100, B01010, B11011, B00000};     // Cool Space Ship
+byte laser[8] = {B00100, B00100, B00100, B00100, B00100, B00000, B00000, B00000};    // Laser Beam
+byte explode[8] = {B10001, B01010, B00100, B01010, B10001, B00000, B00000, B00000};  // Explosion 💥
 
 // ===== STATE VARIABLES =====
-enum GameState
-{
+enum GameState{
   MENU,
   TIMER_SETUP,
-  TIMER_RUN,
-  DINO_GAME
+  GAMES_MENU,
+  DINO_GAME,
+  SPACE_GAME
 };
 GameState currentState = MENU;
 
 // ===== GAME VARIABLES =====
-int playerPos = 0;
-int jumpTimer = 0;
-int gameScore = 0;
-int highScore = 0;
-int obsPos[2] = {15, 23};
-unsigned long lastGameUpdate = 0;
-int currentSpeed = 250;
+int highScoreDino = 0;
+int highScoreSpace = 0;
 
 // --- Function Prototypes ---
 char getKey();
 char getKeyNonBlocking();
 void runTimer();
+void showGamesMenu();
 void runDinoGame();
+void runSpaceGame();
 void showMenu();
 void playBeep(int duration);
 void playGameOver();
 void resetAll();
 
-void setup()
-{
+void setup(){
   lcd.begin(16, 2);
   lcd.createChar(0, player);
   lcd.createChar(1, obstacle);
+  lcd.createChar(2, alien);
+  lcd.createChar(3, ship);
+  lcd.createChar(4, laser);
+  lcd.createChar(5, explode);
 
   pinMode(BUZZER_PIN, OUTPUT);
 
-  for (int i = 0; i < 4; i++)
-  {
+  for (int i = 0; i < 4; i++){
     pinMode(rowPins[i], OUTPUT);
     digitalWrite(rowPins[i], HIGH);
     pinMode(colPins[i], INPUT_PULLUP);
   }
 
+  randomSeed(analogRead(0));
+
   resetAll();
 
   lcd.clear();
   delay(100);
-  lcd.print("ProjectMp v2.0");
+  lcd.print("ProjectMp v3.1");
   lcd.setCursor(0, 1);
   lcd.print("Starting...");
   delay(2000);
@@ -80,59 +81,74 @@ void setup()
 
 void loop()
 {
-  switch (currentState)
-  {
+  switch (currentState){
   case MENU:
     showMenu();
     break;
   case TIMER_SETUP:
     runTimer();
     break;
+  case GAMES_MENU:
+    showGamesMenu();
+    break;
   case DINO_GAME:
     runDinoGame();
+    break;
+  case SPACE_GAME:
+    runSpaceGame();
     break;
   default:
     currentState = MENU;
   }
 }
 
-// ===== MENU SCREEN =====
-void showMenu()
-{
+// ===== MAIN MENU =====
+void showMenu(){
   lcd.clear();
   lcd.print("** MAIN MENU **");
   lcd.setCursor(0, 1);
-  lcd.print("1:Timer  2:Game");
+  lcd.print("1:Timer  2:Games");
   delay(200);
 
   char choice = getKey();
 
   if (choice == '1')
-  {
     currentState = TIMER_SETUP;
-  }
   else if (choice == '2')
-  {
+    currentState = GAMES_MENU;
+
+  delay(300);
+}
+
+// ===== GAMES SUB-MENU =====
+void showGamesMenu(){
+  lcd.clear();
+  lcd.print("Select Game:");
+  lcd.setCursor(0, 1);
+  lcd.print("1:Dino   2:Space");
+  delay(200);
+
+  char choice = getKey();
+
+  if (choice == '1')
     currentState = DINO_GAME;
-  }
+  else if (choice == '2')
+    currentState = SPACE_GAME;
+  else if (choice == 'A' || choice == 'D')
+    currentState = MENU;
+
   delay(300);
 }
 
 // --- Keypad Scanning Logic ---
-char getKey()
-{
-  while (true)
-  {
-    for (int r = 0; r < 4; r++)
-    {
+char getKey(){
+  while (true){
+    for (int r = 0; r < 4; r++){
       digitalWrite(rowPins[r], LOW);
-      for (int c = 0; c < 4; c++)
-      {
-        if (digitalRead(colPins[c]) == LOW)
-        {
+      for (int c = 0; c < 4; c++){
+        if (digitalRead(colPins[c]) == LOW){
           delay(30);
-          while (digitalRead(colPins[c]) == LOW)
-            ;
+          while (digitalRead(colPins[c]) == LOW);
           digitalWrite(rowPins[r], HIGH);
           delay(30);
           return keys[r][c];
@@ -143,20 +159,14 @@ char getKey()
   }
 }
 
-char getKeyNonBlocking()
-{
-  for (int r = 0; r < 4; r++)
-  {
+char getKeyNonBlocking(){
+  for (int r = 0; r < 4; r++){
     digitalWrite(rowPins[r], LOW);
-    for (int c = 0; c < 4; c++)
-    {
-      if (digitalRead(colPins[c]) == LOW)
-      {
+    for (int c = 0; c < 4; c++){
+      if (digitalRead(colPins[c]) == LOW){
         delay(30);
-        if (digitalRead(colPins[c]) == LOW)
-        {
-          while (digitalRead(colPins[c]) == LOW)
-            ;
+        if (digitalRead(colPins[c]) == LOW){
+          while (digitalRead(colPins[c]) == LOW);
           digitalWrite(rowPins[r], HIGH);
           delay(30);
           return keys[r][c];
@@ -168,16 +178,13 @@ char getKeyNonBlocking()
   return '\0';
 }
 
-// --- Buzzer Functions ---
-void playBeep(int duration)
-{
+void playBeep(int duration){
   digitalWrite(BUZZER_PIN, HIGH);
   delay(duration);
   digitalWrite(BUZZER_PIN, LOW);
 }
 
-void playGameOver()
-{
+void playGameOver(){
   playBeep(100);
   delay(100);
   playBeep(100);
@@ -185,9 +192,8 @@ void playGameOver()
   playBeep(250);
 }
 
-// ===== Mode 1: Countdown Timer (UNCHANGED) =====
-void runTimer()
-{
+// ===== Mode 1: Countdown Timer =====
+void runTimer(){
   lcd.clear();
   delay(100);
   lcd.print("Timer Mode");
@@ -195,31 +201,26 @@ void runTimer()
   lcd.print("Enter Seconds:");
   delay(1500);
 
-  // --- New UX improvement for input display ---
   lcd.clear();
   delay(50);
   lcd.print("Input Time:");
   lcd.setCursor(0, 1);
-  lcd.print("    [ - - ]"); // Visual format user will see
+  lcd.print("  [ - - ]");
 
-  // Wait for first digit
   char s1 = getKey();
-  lcd.setCursor(6, 1); // Move cursor to first position
+  lcd.setCursor(6, 1);
   lcd.print(s1);
 
-  // Wait for second digit
   char s2 = getKey();
-  lcd.setCursor(8, 1); // Move cursor to second position
+  lcd.setCursor(8, 1);
   lcd.print(s2);
 
-  delay(400); // Brief delay so user can see both digits before timer starts
+  delay(400);
 
   int totalSeconds = ((s1 - '0') * 10) + (s2 - '0');
 
-  if (totalSeconds <= 0 || totalSeconds > 99)
-  {
+  if (totalSeconds <= 0 || totalSeconds > 99){
     lcd.clear();
-    delay(50);
     lcd.print("Invalid!");
     lcd.setCursor(0, 1);
     lcd.print("(1-99 only)");
@@ -231,40 +232,29 @@ void runTimer()
 
   delay(500);
   lcd.clear();
-  delay(50);
   lcd.print("Timer Running");
-  lcd.setCursor(0, 1);
   int displayValue = totalSeconds;
   unsigned long lastUpdate = millis();
 
-  while (displayValue >= 0)
-  {
-    for (int i = 0; i < 40; i++)
-    {
+  while (displayValue >= 0){
+    for (int i = 0; i < 40; i++){
       char key = getKeyNonBlocking();
-      if (key == 'A' || key == 'D')
-      {
+      if (key == 'A' || key == 'D'){
         lcd.clear();
-        delay(50);
         lcd.print("Cancelled");
-        lcd.setCursor(0, 1);
-        lcd.print("Going to Menu");
         playBeep(100);
         delay(1000);
         currentState = MENU;
         return;
       }
 
-      if (millis() - lastUpdate >= 1000)
-      {
+      if (millis() - lastUpdate >= 1000){
         lcd.setCursor(0, 1);
         lcd.print("Time: ");
         if (displayValue < 10)
           lcd.print("0");
         lcd.print(displayValue);
         lcd.print("s  ");
-        delay(100);
-
         displayValue--;
         lastUpdate = millis();
         break;
@@ -274,22 +264,16 @@ void runTimer()
   }
 
   lcd.clear();
-  delay(50);
   lcd.print("** TIME UP **");
   lcd.setCursor(0, 1);
   lcd.print("Well Done!");
-
   playGameOver();
-  delay(500);
-  playBeep(200);
-  delay(500);
-
+  delay(1000);
   currentState = MENU;
 }
 
-// ===== Mode 2: Dino Game (UPDATED) =====
-void runDinoGame()
-{
+// ===== Game 1: Dino Game =====
+void runDinoGame(){
   lcd.clear();
   lcd.print("Dino Game!");
   lcd.setCursor(0, 1);
@@ -300,180 +284,241 @@ void runDinoGame()
   lcd.setCursor(12, 0);
   lcd.print("S:0");
 
-  playerPos = 0;
-  jumpTimer = 0;
-  gameScore = 0;
-  currentSpeed = 150;
-  obsPos[0] = 15;
-  obsPos[1] = 23;
-  lastGameUpdate = millis();
-
+  int playerPos = 0, jumpTimer = 0, gameScore = 0;
+  int currentSpeed = 150;
+  int obsPos[2] = {15, 23};
+  unsigned long lastGameUpdate = millis();
   boolean gameRunning = true;
 
-  while (gameRunning)
-  {
+  while (gameRunning){
     char key = getKeyNonBlocking();
-
-    if (key != '\0')
-    {
+    if (key != '\0'){
       if (key == 'A' || key == 'D')
-      {
-        gameRunning = false;
         break;
-      }
-      else if (playerPos == 0 && jumpTimer == 0)
-      {
+      else if (playerPos == 0 && jumpTimer == 0){
         playerPos = 1;
         jumpTimer = 3;
         playBeep(20);
       }
     }
 
-    if (millis() - lastGameUpdate >= currentSpeed)
-    {
-
-      for (int i = 0; i < 2; i++)
-      {
-        // 1. Clear old obstacle
-        if (obsPos[i] >= 0 && obsPos[i] < 16)
-        {
+    if (millis() - lastGameUpdate >= currentSpeed){
+      for (int i = 0; i < 2; i++){
+        if (obsPos[i] >= 0 && obsPos[i] < 16){
           lcd.setCursor(obsPos[i], 1);
           lcd.print(" ");
         }
-
-        // 2. Move obstacle
         obsPos[i]--;
 
-        // 3. Redraw obstacle and update score
-        if (obsPos[i] < 0)
-        {
-          // Calculate random distance for new obstacle based on other obstacle position
+        if (obsPos[i] < 0){
           int otherObs = (i == 0) ? 1 : 0;
-          int gap = random(5, 9); // Random gap between 5 and 8 steps
-          obsPos[i] = max(15, obsPos[otherObs]) + gap;
-
+          obsPos[i] = max(15, obsPos[otherObs]) + random(5, 9);
           gameScore++;
           lcd.setCursor(12, 0);
           lcd.print("S:");
           lcd.print(gameScore);
 
-          // Improvement: Gradually increase speed
-          if (currentSpeed > 150 && gameScore % 3 == 0)
-          {
+          if (currentSpeed > 100 && gameScore % 3 == 0)
             currentSpeed -= 15;
-          }
-
-          // Improvement: Celebratory beep every 5 points
           if (gameScore % 2 == 0)
-          {
             playBeep(50);
-          }
         }
 
-        // 4. Draw obstacle at its new position
-        if (obsPos[i] >= 0 && obsPos[i] < 16)
-        {
+        if (obsPos[i] >= 0 && obsPos[i] < 16){
           lcd.setCursor(obsPos[i], 1);
           lcd.write(byte(1));
         }
       }
 
-      // 5. Jump physics
-      if (jumpTimer > 0)
-      {
+      if (jumpTimer > 0){
         jumpTimer--;
-        if (jumpTimer == 0)
-        {
+        if (jumpTimer == 0){
           lcd.setCursor(1, 0);
           lcd.print(" ");
           playerPos = 0;
         }
       }
 
-      // 6. Collision detection (if hit any of the obstacles)
-      if ((obsPos[0] == 1 || obsPos[1] == 1) && playerPos == 0)
-      {
+      if ((obsPos[0] == 1 || obsPos[1] == 1) && playerPos == 0){
         lcd.setCursor(1, 1);
         lcd.write(byte(1));
         gameRunning = false;
         break;
       }
 
-      // 7. Draw dinosaur
-      if (playerPos == 1)
-      {
+      if (playerPos == 1){
         lcd.setCursor(1, 0);
         lcd.write(byte(0));
         lcd.setCursor(1, 1);
         lcd.print(" ");
       }
-      else
-      {
+      else{
         lcd.setCursor(1, 1);
         lcd.write(byte(0));
       }
-
       lastGameUpdate = millis();
     }
   }
 
-  // --- Game Over Screen ---
-  if (gameScore > highScore)
-  {
-    highScore = gameScore; // Save high score
-  }
+  if (gameScore > highScoreDino) highScoreDino = gameScore;
 
   delay(500);
   lcd.clear();
-  lcd.print("GAME OVER! S:");
-  lcd.print(gameScore);
-  lcd.setCursor(0, 1);
-  lcd.print("High Score: ");
-  lcd.print(highScore);
-
-  playGameOver();
-
-  delay(1000); // delay before showing retry options
-  lcd.clear();
   lcd.print("Score:");
   lcd.print(gameScore);
-  lcd.print(" High:");
-  lcd.print(highScore);
-
+  lcd.print(" Hi:");
+  lcd.print(highScoreDino);
   lcd.setCursor(0, 1);
-  lcd.print("1:Retry  2:Menu ");
+  lcd.print("1:Retry  2:Menu");
+  playGameOver();
 
-  // wait for any key release to avoid immediate re-triggering
-  while (getKeyNonBlocking() != '\0')
-    ;
-
-  // retry or menu
-  while (true)
-  {
+  while (getKeyNonBlocking() != '\0');
+  while (true){
     char choice = getKeyNonBlocking();
-    if (choice == '1')
-    {
-      currentState = DINO_GAME; //  start new game
+    if (choice == '1'){
+      currentState = DINO_GAME;
       break;
     }
-    else if (choice == '2')
-    {
-      currentState = MENU; // Return to main menu
+    else if (choice == '2'){
+      currentState = GAMES_MENU;
       break;
     }
   }
 }
 
+//===== Game 2: Space Invaders (Unpredictable Alien) ====
+void runSpaceGame(){
+  lcd.clear();
+  lcd.print("Space Invaders!");
+  lcd.setCursor(0, 1);
+  lcd.print("4:< 6:> 5:Shoot");
+  delay(2000);
+  lcd.clear();
+
+  int shipX = 7, score = 0;
+  int alienX = 15;
+  int alienDir = -1;
+  int alienSpeed = 400;
+  unsigned long lastAlienMove = millis();
+
+  lcd.setCursor(shipX, 1);
+  lcd.write(byte(3)); // رسم السفينة
+  lcd.setCursor(alienX, 0);
+  lcd.write(byte(2)); // رسم الفضائي
+
+  while (true){
+    char k = getKeyNonBlocking();
+    int oldX = shipX;
+
+    if (k == '4' && shipX > 0)
+      shipX--; // move left
+    if (k == '6' && shipX < 15)
+      shipX++; // move right
+    if (k == 'A' || k == 'D')
+      break;
+
+    // update ship position if changed
+    if (shipX != oldX){
+      lcd.setCursor(oldX, 1);
+      lcd.print(" ");
+      lcd.setCursor(shipX, 1);
+      lcd.write(byte(3));
+    }
+
+    // shooting logic
+    if (k == '5'){
+      playBeep(30);
+      lcd.setCursor(shipX, 0);
+      lcd.write(byte(4)); // DRAW LASER
+      delay(80);          //delay for laser to be visible
+
+      if (shipX == alienX){ // if hit
+        lcd.setCursor(alienX, 0);
+        lcd.write(byte(5)); // draw explosion
+        playBeep(80);
+        delay(150);
+        lcd.setCursor(alienX, 0);
+        lcd.print(" ");
+
+        score++;
+
+        // --- logic for new alien ---
+        if (random(0, 2) == 0){
+          alienX = 15;
+          alienDir = -1; // show from right and move left
+        }
+        else{
+          alienX = 0;
+          alienDir = 1; // show from left and move right
+        }
+
+        if (alienSpeed > 100)  alienSpeed -= 20; // increase speed after each hit
+      }
+      else{// missed shot
+        lcd.setCursor(shipX, 0);
+        lcd.print(" ");
+      }
+
+      if (shipX != alienX && alienX >= 0 && alienX <= 15){
+        lcd.setCursor(alienX, 0);
+        lcd.write(byte(2));
+      }
+    }
+
+    // move alien
+    if (millis() - lastAlienMove > alienSpeed){
+      lcd.setCursor(alienX, 0);
+      lcd.print(" "); // remove old alien position
+
+      // shift the alien
+      alienX += alienDir;
+
+      // --- new logic for unpredictable movement ---
+      // if the score is higher than 3, the alien might suddenly change direction with a certain probability while on screen
+      if (score > 3 && random(0, 10) > 7 && alienX > 3 && alienX < 12)
+        alienDir = -alienDir; // change direction unpredictably
+
+      // lose condition: if the alien reaches the ship's row
+      if (alienX < 0 || alienX > 15){
+        lcd.setCursor(shipX, 1);
+        lcd.write(byte(5)); // explosion on ship
+        break;
+      }
+
+      lcd.setCursor(alienX, 0);
+      lcd.write(byte(2)); // draw alien in new position
+      lastAlienMove = millis();
+    }
+  }
+
+  if (score > highScoreSpace)   highScoreSpace = score;
+
+  delay(500);
+  lcd.clear();
+  lcd.print("Score:");
+  lcd.print(score);
+  lcd.print(" Hi:");
+  lcd.print(highScoreSpace);
+  lcd.setCursor(0, 1);
+  lcd.print("1:Retry  2:Menu");
+  playGameOver();
+
+  while (getKeyNonBlocking() != '\0');
+  while (true){
+    char choice = getKeyNonBlocking();
+    if (choice == '1'){
+      currentState = SPACE_GAME;
+      break; }
+    else if (choice == '2'){
+      currentState = GAMES_MENU;
+      break;}
+  }
+}
 // ===== RESET FUNCTION =====
-void resetAll()
-{
+void resetAll(){
   currentState = MENU;
   lcd.clear();
   lcd.home();
   digitalWrite(BUZZER_PIN, LOW);
-  for (int i = 0; i < 4; i++)
-  {
-    digitalWrite(rowPins[i], HIGH);
-  }
-  delay(100);
-}
+  for (int i = 0; i < 4; i++) digitalWrite(rowPins[i], HIGH);
+  delay(100);}
