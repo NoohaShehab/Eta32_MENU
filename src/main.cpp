@@ -18,7 +18,9 @@
 LiquidCrystal lcd(25, 26, 27, 28, 29, 30);
 const uint8_t rowBits[4] = {4, 5, 6, 7}; // PB4, PB5, PB6, PB7
 const uint8_t colBits[4] = {2, 3, 4, 5}; // PD2, PD3, PD4, PD5
-const uint8_t buzzerBit = 21;
+#define BUZZER_PORT PORTC
+#define BUZZER_DDR  DDRC
+#define BUZZER_PIN  PC5
 const char keys[4][4] = {
     {'1', '2', '3', 'A'},
     {'4', '5', '6', 'B'},
@@ -90,8 +92,8 @@ void keypad_init(){
     }
 }
 void buzzer_init(){
-  SET_BIT(DDRC, buzzerBit);
-  CLR_BIT(PORTC, buzzerBit);}
+  SET_BIT(BUZZER_DDR, BUZZER_PIN);
+  CLR_BIT(BUZZER_PORT, BUZZER_PIN);}
 
 unsigned long get_millis(){
   unsigned long value;
@@ -254,10 +256,10 @@ char getKeyNonBlocking(){
 }
 
 void playBeep(int duration){
-  SET_BIT(PORTC, buzzerBit);
-  delay(duration);
-  CLR_BIT(PORTC, buzzerBit);}
-
+  SET_BIT(BUZZER_PORT, BUZZER_PIN);
+  delay_ms(duration);
+  CLR_BIT(BUZZER_PORT, BUZZER_PIN);
+}
 void playGameOver(){
   playBeep(100);
   delay(100);
@@ -358,7 +360,7 @@ void runDinoGame(){
   lcd.print("S:0");
 
   int playerPos = 0, jumpTimer = 0, gameScore = 0;
-  int currentSpeed = 150;
+  int currentSpeed =300;
   int obsPos[2] = {15, 23};
   unsigned long lastGameUpdate = get_millis();
   bool gameRunning = true;
@@ -421,13 +423,19 @@ void runDinoGame(){
       }
 
       if (playerPos == 1){
+       
+        lcd.setCursor(1, 1);
+        lcd.print(" "); 
+        
         lcd.setCursor(1, 0);
-        lcd.write(byte(0));
+        lcd.write(byte(0)); 
+      } else {
+     
+        lcd.setCursor(1, 0);
+        lcd.print(" "); 
+        
         lcd.setCursor(1, 1);
-        lcd.print(" ");
-      }else{
-        lcd.setCursor(1, 1);
-        lcd.write(byte(0));
+        lcd.write(byte(0)); 
       }
       lastGameUpdate = get_millis();
     }
@@ -538,7 +546,7 @@ void runSpaceGame(){
       }
     }
 
-    // move alien
+   // move alien
     if (get_millis() - lastAlienMove > (unsigned long)alienSpeed){
       lcd.setCursor(alienX, 0);
       lcd.print(" "); // remove old alien position
@@ -593,7 +601,11 @@ void resetAll(){
   currentState = MENU;
   lcd.clear();
   lcd.home();
-  CLR_BIT(PORTC, buzzerBit);
-  for (uint8_t i = 0; i < 4; i++)  SET_BIT(PORTD, rowBits[i]);
+
+  CLR_BIT(PORTC, BUZZER_PIN);
+
+  for (uint8_t i = 0; i < 4; i++)
+    SET_BIT(PORTB, rowBits[i]);
+
   delay(100);
 }
