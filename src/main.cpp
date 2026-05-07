@@ -1,29 +1,36 @@
-#include <Arduino.h>
-#include <LiquidCrystal.h>
-#include "MACROS.h"
-#include <stdio.h>
-#include <util/delay.h>
+#ifdef F_CPU
+#undef F_CPU
+#endif
 #define F_CPU 16000000UL
 
-// --- Correct Mapping for Eta32mini + MightyCore Standard Pinout ---
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/delay.h>
+#include <Arduino.h>
+#include <LiquidCrystal.h>
+#include <stdio.h>
+#include "MACROS.h"
+
+#define delay(ms) delay_ms(ms)
+#define delayMicroseconds(us) _delay_us(us)
+#define random(minValue, maxValue) random_range(minValue, maxValue)
+
 LiquidCrystal lcd(25, 26, 27, 28, 29, 30);
-// Keypad Pins
-const int rowPins[4] = {4, 5, 6, 7};
-const int colPins[4] = {10, 11, 12, 13};
-char keys[4][4] = {
+const uint8_t rowBits[4] = {4, 5, 6, 7}; // PB4, PB5, PB6, PB7
+const uint8_t colBits[4] = {2, 3, 4, 5}; // PD2, PD3, PD4, PD5
+const uint8_t buzzerBit = PC0;
+const char keys[4][4] = {
     {'1', '2', '3', 'A'},
     {'4', '5', '6', 'B'},
     {'7', '8', '9', 'C'},
     {'*', '0', '#', 'D'}};
-#define BUZZER_PIN 21
 // ===== CUSTOM CHARACTERS =====
-byte player[8] = {B00111, B00101, B00111, B10110, B11111, B01110, B01010, B00000};   // Dino
-byte obstacle[8] = {B00100, B00101, B10101, B10111, B11100, B00100, B00100, B00000}; // Cactus
-byte alien[8] = {B10001, B01010, B11111, B10101, B11111, B01010, B10001, B00000};    // Classic Alien
-byte ship[8] = {B00100, B01110, B11111, B10101, B00100, B01010, B11011, B00000};     // Cool Space Ship
-byte laser[8] = {B00100, B00100, B00100, B00100, B00100, B00000, B00000, B00000};    // Laser Beam
-byte explode[8] = {B10001, B01010, B00100, B01010, B10001, B00000, B00000, B00000};  // Explosion 💥
-
+uint8_t player[8] = {B00111, B00101, B00111, B10110, B11111, B01110, B01010, B00000};
+uint8_t obstacle[8] = {B00100, B00101, B10101, B10111, B11100, B00100, B00100, B00000};
+uint8_t alien[8] = {B10001, B01010, B11111, B10101, B11111, B01010, B10001, B00000};
+uint8_t ship[8] = {B00100, B01110, B11111, B10101, B00100, B01010, B11011, B00000};
+uint8_t laser[8] = {B00100, B00100, B00100, B00100, B00100, B00000, B00000, B00000};
+uint8_t explode[8] = {B10001, B01010, B00100, B01010, B10001, B00000, B00000, B00000};
 // ===== STATE VARIABLES =====
 enum GameState{
   MENU,
@@ -33,12 +40,22 @@ enum GameState{
   SPACE_GAME
 };
 GameState currentState = MENU;
-
 // ===== GAME VARIABLES =====
 int highScoreDino = 0;
 int highScoreSpace = 0;
 
+volatile unsigned long timer_millis = 0;
+static uint32_t rng_state = 0x6D2B79F5UL;
+
 // --- Function Prototypes ---
+void timer0_init();
+void keypad_init();
+void buzzer_init();
+unsigned long get_millis();
+void delay_ms(unsigned long ms);
+void seed_rng(unsigned long seed);
+uint32_t next_random();
+long random_range(long minValue, long maxValue);
 char getKey();
 char getKeyNonBlocking();
 void runTimer();
@@ -50,7 +67,64 @@ void playBeep(int duration);
 void playGameOver();
 void resetAll();
 
-void setup(){
+ISR(TIMER0_COMP_vect){ timer_millis++; }
+void timer0_init(){
+  TCCR0 = 0;
+  TCNT0 = 0;
+  OCR0 = 249;
+  SET_BIT(TCCR0, WGM01);
+  SET_BIT(TIMSK, OCIE0);
+  SET_BIT(TCCR0, CS01);
+  SET_BIT(TCCR0, CS00);
+}
+
+void keypad_init(){
+  for (uint8_t i = 0; i < 4; i++) {
+        // Rows on PORTB (Outputs)
+        SET_BIT(DDRB, rowBits[i]);    // PB4-PB7 as Output
+        SET_BIT(PORTB, rowBits[i]);   // Set High
+        
+        // Columns on PORTD (Inputs)
+        CLR_BIT(DDRD, colBits[i]);    // PD2-PD5 as Input
+        SET_BIT(PORTD, colBits[i]);   // Enable Internal Pull-up
+    }
+}
+void buzzer_init(){
+  SET_BIT(DDRC, buzzerBit);
+  CLR_BIT(PORTC, buzzerBit);}
+
+unsigned long get_millis(){
+  unsigned long value;
+  uint8_t sreg = SREG;
+  cli();
+  value = timer_millis;
+  SREG = sreg;
+  return value;
+}
+
+void delay_ms(unsigned long ms){
+  unsigned long start = get_millis();
+  while ((unsigned long)(get_millis() - start) < ms){}
+}
+
+void seed_rng(unsigned long seed) {rng_state = seed ? seed : 0x6D2B79F5UL;}
+
+uint32_t next_random(){
+  uint32_t x = rng_state;
+  x ^= x << 13;
+  x ^= x >> 17;
+  x ^= x << 5;
+  rng_state = x;
+  return x;
+}
+
+long random_range(long minValue, long maxValue){
+  if (maxValue <= minValue) {return minValue;}
+  return minValue + (long)(next_random() % (uint32_t)(maxValue - minValue));
+}
+
+int main(void){
+  cli();
   lcd.begin(16, 2);
   lcd.createChar(0, player);
   lcd.createChar(1, obstacle);
@@ -59,15 +133,13 @@ void setup(){
   lcd.createChar(4, laser);
   lcd.createChar(5, explode);
 
-  pinMode(BUZZER_PIN, OUTPUT);
+  timer0_init();
+  keypad_init();
+  buzzer_init();
+  sei();
 
-  for (int i = 0; i < 4; i++){
-    pinMode(rowPins[i], OUTPUT);
-    digitalWrite(rowPins[i], HIGH);
-    pinMode(colPins[i], INPUT_PULLUP);
-  }
-
-  randomSeed(analogRead(0));
+  delay_ms(1);
+  seed_rng(get_millis() ^ 0xA5A5A5A5UL);
 
   resetAll();
 
@@ -77,29 +149,29 @@ void setup(){
   lcd.setCursor(0, 1);
   lcd.print("Starting...");
   delay(2000);
-}
 
-void loop()
-{
-  switch (currentState){
-  case MENU:
-    showMenu();
-    break;
-  case TIMER_SETUP:
-    runTimer();
-    break;
-  case GAMES_MENU:
-    showGamesMenu();
-    break;
-  case DINO_GAME:
-    runDinoGame();
-    break;
-  case SPACE_GAME:
-    runSpaceGame();
-    break;
-  default:
-    currentState = MENU;
+  while (1){
+    switch (currentState){
+    case MENU:
+      showMenu();
+      break;
+    case TIMER_SETUP:
+      runTimer();
+      break;
+    case GAMES_MENU:
+      showGamesMenu();
+      break;
+    case DINO_GAME:
+      runDinoGame();
+      break;
+    case SPACE_GAME:
+      runSpaceGame();
+      break;
+    default:
+      currentState = MENU;
+    }
   }
+  return 0;
 }
 
 // ===== MAIN MENU =====
@@ -141,56 +213,57 @@ void showGamesMenu(){
 }
 
 // --- Keypad Scanning Logic ---
-char getKey(){
-  while (true){
-    for (int r = 0; r < 4; r++){
-      digitalWrite(rowPins[r], LOW);
-      for (int c = 0; c < 4; c++){
-        if (digitalRead(colPins[c]) == LOW){
-          delay(30);
-          while (digitalRead(colPins[c]) == LOW);
-          digitalWrite(rowPins[r], HIGH);
-          delay(30);
-          return keys[r][c];
+char getKey() {
+    while (1) {
+        for (uint8_t r = 0; r < 4; r++) {
+            CLR_BIT(PORTB, rowBits[r]); // صفر الصف في PORTB
+            
+            for (uint8_t c = 0; c < 4; c++) {
+                // اقرأ العمود من PORTD (PIND)
+                if (READ_BIT(PIND, colBits[c]) == 0) { 
+                    _delay_ms(30); 
+                    while (READ_BIT(PIND, colBits[c]) == 0);
+                    SET_BIT(PORTB, rowBits[r]); 
+                    _delay_ms(30);
+                    return keys[r][c];
+                }
+            }
+            SET_BIT(PORTB, rowBits[r]); // رجع الصف HIGH
         }
-      }
-      digitalWrite(rowPins[r], HIGH);
     }
-  }
 }
-
 char getKeyNonBlocking(){
-  for (int r = 0; r < 4; r++){
-    digitalWrite(rowPins[r], LOW);
-    for (int c = 0; c < 4; c++){
-      if (digitalRead(colPins[c]) == LOW){
-        delay(30);
-        if (digitalRead(colPins[c]) == LOW){
-          while (digitalRead(colPins[c]) == LOW);
-          digitalWrite(rowPins[r], HIGH);
-          delay(30);
+  for (uint8_t r = 0; r < 4; r++){
+    SET_BIT(PORTB, rowBits[r]);
+    CLR_BIT(PORTB, rowBits[r]);
+
+    for (uint8_t c = 0; c < 4; c++){
+      if (READ_BIT(PIND, colBits[c]) == 0){
+        delay_ms(30);
+        if (READ_BIT(PIND, colBits[c]) == 0){
+          while (READ_BIT(PIND, colBits[c]) == 0){}
+          SET_BIT(PORTB, rowBits[r]);
+          delay_ms(30);
           return keys[r][c];
         }
       }
     }
-    digitalWrite(rowPins[r], HIGH);
+    SET_BIT(PORTB, rowBits[r]);
   }
   return '\0';
 }
 
 void playBeep(int duration){
-  digitalWrite(BUZZER_PIN, HIGH);
+  SET_BIT(PORTC, buzzerBit);
   delay(duration);
-  digitalWrite(BUZZER_PIN, LOW);
-}
+  CLR_BIT(PORTC, buzzerBit);}
 
 void playGameOver(){
   playBeep(100);
   delay(100);
   playBeep(100);
   delay(100);
-  playBeep(250);
-}
+  playBeep(250);}
 
 // ===== Mode 1: Countdown Timer =====
 void runTimer(){
@@ -212,7 +285,7 @@ void runTimer(){
   lcd.print(s1);
 
   char s2 = getKey();
-  lcd.setCursor(8, 1);
+  lcd.setCursor(4, 1);
   lcd.print(s2);
 
   delay(400);
@@ -234,7 +307,7 @@ void runTimer(){
   lcd.clear();
   lcd.print("Timer Running");
   int displayValue = totalSeconds;
-  unsigned long lastUpdate = millis();
+  unsigned long lastUpdate = get_millis();
 
   while (displayValue >= 0){
     for (int i = 0; i < 40; i++){
@@ -248,7 +321,7 @@ void runTimer(){
         return;
       }
 
-      if (millis() - lastUpdate >= 1000){
+      if (get_millis() - lastUpdate >= 1000UL){
         lcd.setCursor(0, 1);
         lcd.print("Time: ");
         if (displayValue < 10)
@@ -256,7 +329,7 @@ void runTimer(){
         lcd.print(displayValue);
         lcd.print("s  ");
         displayValue--;
-        lastUpdate = millis();
+        lastUpdate = get_millis();
         break;
       }
       delayMicroseconds(100);
@@ -287,22 +360,23 @@ void runDinoGame(){
   int playerPos = 0, jumpTimer = 0, gameScore = 0;
   int currentSpeed = 150;
   int obsPos[2] = {15, 23};
-  unsigned long lastGameUpdate = millis();
-  boolean gameRunning = true;
+  unsigned long lastGameUpdate = get_millis();
+  bool gameRunning = true;
 
   while (gameRunning){
     char key = getKeyNonBlocking();
     if (key != '\0'){
       if (key == 'A' || key == 'D')
         break;
-      else if (playerPos == 0 && jumpTimer == 0){
+      else if (playerPos == 0 && jumpTimer == 0)
+      {
         playerPos = 1;
         jumpTimer = 3;
         playBeep(20);
       }
     }
 
-    if (millis() - lastGameUpdate >= currentSpeed){
+    if (get_millis() - lastGameUpdate >= (unsigned long)currentSpeed){
       for (int i = 0; i < 2; i++){
         if (obsPos[i] >= 0 && obsPos[i] < 16){
           lcd.setCursor(obsPos[i], 1);
@@ -312,7 +386,7 @@ void runDinoGame(){
 
         if (obsPos[i] < 0){
           int otherObs = (i == 0) ? 1 : 0;
-          obsPos[i] = max(15, obsPos[otherObs]) + random(5, 9);
+          obsPos[i] = ((15 > obsPos[otherObs]) ? 15 : obsPos[otherObs]) + random(5, 9);
           gameScore++;
           lcd.setCursor(12, 0);
           lcd.print("S:");
@@ -351,12 +425,11 @@ void runDinoGame(){
         lcd.write(byte(0));
         lcd.setCursor(1, 1);
         lcd.print(" ");
-      }
-      else{
+      }else{
         lcd.setCursor(1, 1);
         lcd.write(byte(0));
       }
-      lastGameUpdate = millis();
+      lastGameUpdate = get_millis();
     }
   }
 
@@ -399,7 +472,7 @@ void runSpaceGame(){
   int alienX = 15;
   int alienDir = -1;
   int alienSpeed = 400;
-  unsigned long lastAlienMove = millis();
+  unsigned long lastAlienMove = get_millis();
 
   lcd.setCursor(shipX, 1);
   lcd.write(byte(3)); // رسم السفينة
@@ -430,7 +503,7 @@ void runSpaceGame(){
       playBeep(30);
       lcd.setCursor(shipX, 0);
       lcd.write(byte(4)); // DRAW LASER
-      delay(80);          //delay for laser to be visible
+      delay(80);          // delay for laser to be visible
 
       if (shipX == alienX){ // if hit
         lcd.setCursor(alienX, 0);
@@ -452,9 +525,9 @@ void runSpaceGame(){
           alienDir = 1; // show from left and move right
         }
 
-        if (alienSpeed > 100)  alienSpeed -= 20; // increase speed after each hit
+        if (alienSpeed > 100) alienSpeed -= 20; // increase speed after each hit
       }
-      else{// missed shot
+      else{ // missed shot
         lcd.setCursor(shipX, 0);
         lcd.print(" ");
       }
@@ -466,7 +539,7 @@ void runSpaceGame(){
     }
 
     // move alien
-    if (millis() - lastAlienMove > alienSpeed){
+    if (get_millis() - lastAlienMove > (unsigned long)alienSpeed){
       lcd.setCursor(alienX, 0);
       lcd.print(" "); // remove old alien position
 
@@ -491,7 +564,7 @@ void runSpaceGame(){
     }
   }
 
-  if (score > highScoreSpace)   highScoreSpace = score;
+  if (score > highScoreSpace) highScoreSpace = score;
 
   delay(500);
   lcd.clear();
@@ -508,10 +581,11 @@ void runSpaceGame(){
     char choice = getKeyNonBlocking();
     if (choice == '1'){
       currentState = SPACE_GAME;
-      break; }
-    else if (choice == '2'){
+      break;
+    }else if (choice == '2'){
       currentState = GAMES_MENU;
-      break;}
+      break;
+    }
   }
 }
 // ===== RESET FUNCTION =====
@@ -519,6 +593,7 @@ void resetAll(){
   currentState = MENU;
   lcd.clear();
   lcd.home();
-  digitalWrite(BUZZER_PIN, LOW);
-  for (int i = 0; i < 4; i++) digitalWrite(rowPins[i], HIGH);
-  delay(100);}
+  CLR_BIT(PORTC, buzzerBit);
+  for (uint8_t i = 0; i < 4; i++)  SET_BIT(PORTD, rowBits[i]);
+  delay(100);
+}
