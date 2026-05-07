@@ -471,7 +471,7 @@ void runSpaceGame(){
   int shipX = 7, score = 0;
   int alienX = 15;
   int alienDir = -1;
-  int alienSpeed = 400;
+  int alienSpeed = 700;
   unsigned long lastAlienMove = get_millis();
 
   lcd.setCursor(shipX, 1);
@@ -503,7 +503,7 @@ void runSpaceGame(){
       playBeep(30);
       lcd.setCursor(shipX, 0);
       lcd.write(byte(4)); // DRAW LASER
-      delay(80);          // delay for laser to be visible
+      delay(150);          // delay for laser to be visible
 
       if (shipX == alienX){ // if hit
         lcd.setCursor(alienX, 0);
@@ -525,7 +525,7 @@ void runSpaceGame(){
           alienDir = 1; // show from left and move right
         }
 
-        if (alienSpeed > 100) alienSpeed -= 20; // increase speed after each hit
+        if (alienSpeed > 150) alienSpeed -= 10; // increase speed after each hit
       }
       else{ // missed shot
         lcd.setCursor(shipX, 0);
@@ -552,7 +552,7 @@ void runSpaceGame(){
         alienDir = -alienDir; // change direction unpredictably
 
       // lose condition: if the alien reaches the ship's row
-      if (alienX < 0 || alienX > 15){
+      if ((alienDir == -1 && alienX < 0) || (alienDir == 1 && alienX > 15)){
         lcd.setCursor(shipX, 1);
         lcd.write(byte(5)); // explosion on ship
         break;
@@ -560,7 +560,7 @@ void runSpaceGame(){
 
       lcd.setCursor(alienX, 0);
       lcd.write(byte(2)); // draw alien in new position
-      lastAlienMove = millis();
+      lastAlienMove = get_millis();
     }
   }
 
