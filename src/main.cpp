@@ -281,11 +281,11 @@ void runTimer(){
   lcd.print("  [ - - ]");
 
   char s1 = getKey();
-  lcd.setCursor(6, 1);
+  lcd.setCursor(4, 1);
   lcd.print(s1);
 
   char s2 = getKey();
-  lcd.setCursor(4, 1);
+  lcd.setCursor(6, 1);
   lcd.print(s2);
 
   delay(400);
