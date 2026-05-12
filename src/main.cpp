@@ -7,8 +7,6 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
-#include <Arduino.h>
-#include <LiquidCrystal.h>
 #include <stdio.h>
 #include "MACROS.h"
 
@@ -21,22 +19,22 @@
 #define LCD_CLEAR(c, r)      \
   do                         \
   {                          \
-    lcd.setCursor((c), (r)); \
-    lcd.print(' ');          \
+    lcd_setCursor((c), (r)); \
+    lcd_print(" ");          \
   } while (0)
-#define LCD_DRAW(c, r, ch)   \
-  do                         \
-  {                          \
-    lcd.setCursor((c), (r)); \
-    lcd.write(byte(ch));     \
+#define LCD_DRAW(c, r, ch)    \
+  do                          \
+  {                           \
+    lcd_setCursor((c), (r));  \
+    lcd_write((uint8_t)(ch)); \
   } while (0)
 #define LCD_SCREEN(a, b, ms) \
   do                         \
   {                          \
-    lcd.clear();             \
-    lcd.print(a);            \
-    lcd.setCursor(0, 1);     \
-    lcd.print(b);            \
+    lcd_clear();             \
+    lcd_print(a);            \
+    lcd_setCursor(0, 1);     \
+    lcd_print(b);            \
     delay(ms);               \
   } while (0)
 
@@ -58,13 +56,13 @@
     if ((sc) > (hi))                \
       (hi) = (sc);                  \
     delay(500);                     \
-    lcd.clear();                    \
-    lcd.print("Score:");            \
-    lcd.print(sc);                  \
-    lcd.print(" Hi:");              \
-    lcd.print(hi);                  \
-    lcd.setCursor(0, 1);            \
-    lcd.print("1:Retry  2:Menu");   \
+    lcd_clear();                    \
+    lcd_print("Score:");            \
+    lcd_printInt(sc);               \
+    lcd_print(" Hi:");              \
+    lcd_printInt(hi);               \
+    lcd_setCursor(0, 1);            \
+    lcd_print("1:Retry  2:Menu");   \
     playGameOver();                 \
     FLUSH_KEY();                    \
     for (char _c = '\0';;)          \
@@ -84,7 +82,25 @@
   } while (0)
 
 // ── Hardware ─────────────────────────────────────────────────
-LiquidCrystal lcd(25, 26, 27, 28, 29, 30);
+// LCD pins (4-bit mode): RS=PA3, E=PA4, D4-D7=PA5-PA7, D7_ALT=PC7
+#define LCD_RS_PORT PORTA
+#define LCD_RS_DDR DDRA
+#define LCD_RS_PIN PA3
+#define LCD_E_PORT PORTA
+#define LCD_E_DDR DDRA
+#define LCD_E_PIN PA4
+#define LCD_D4_PORT PORTA
+#define LCD_D4_DDR DDRA
+#define LCD_D4_PIN PA5
+#define LCD_D5_PORT PORTA
+#define LCD_D5_DDR DDRA
+#define LCD_D5_PIN PA6
+#define LCD_D6_PORT PORTA
+#define LCD_D6_DDR DDRA
+#define LCD_D6_PIN PA7
+#define LCD_D7_PORT PORTC
+#define LCD_D7_DDR DDRC
+#define LCD_D7_PIN PC7
 const uint8_t rowBits[4] = {4, 5, 6, 7};
 const uint8_t colBits[4] = {2, 3, 4, 5};
 #define BUZZER_PORT PORTC
@@ -94,12 +110,12 @@ const uint8_t colBits[4] = {2, 3, 4, 5};
 const char keys[4][4] = {{'1', '2', '3', 'A'}, {'4', '5', '6', 'B'}, {'7', '8', '9', 'C'}, {'*', '0', '#', 'D'}};
 
 // ── Custom chars (slot order matches createChar in main) ─────
-uint8_t player[8] = {B00111, B00101, B00111, B10110, B11111, B01110, B01010, B00000};
-uint8_t obstacle[8] = {B00100, B00101, B10101, B10111, B11100, B00100, B00100, B00000};
-uint8_t alien[8] = {B10001, B01010, B11111, B10101, B11111, B01010, B10001, B00000};
-uint8_t ship[8] = {B00100, B01110, B11111, B10101, B00100, B01010, B11011, B00000};
-uint8_t laser[8] = {B00100, B00100, B00100, B00100, B00100, B00000, B00000, B00000};
-uint8_t explode[8] = {B10001, B01010, B00100, B01010, B10001, B00000, B00000, B00000};
+uint8_t player[8] = {0x07, 0x05, 0x07, 0x16, 0x1F, 0x0E, 0x0A, 0x00};
+uint8_t obstacle[8] = {0x04, 0x05, 0x15, 0x17, 0x1C, 0x04, 0x04, 0x00};
+uint8_t alien[8] = {0x11, 0x0A, 0x1F, 0x15, 0x1F, 0x0A, 0x11, 0x00};
+uint8_t ship[8] = {0x04, 0x0E, 0x1F, 0x15, 0x04, 0x0A, 0x1B, 0x00};
+uint8_t laser[8] = {0x04, 0x04, 0x04, 0x04, 0x04, 0x00, 0x00, 0x00};
+uint8_t explode[8] = {0x11, 0x0A, 0x04, 0x0A, 0x11, 0x00, 0x00, 0x00};
 #define CHAR_PLAYER 0
 #define CHAR_OBSTACLE 1
 #define CHAR_ALIEN 2
@@ -125,6 +141,17 @@ static uint32_t rng_state = 0x6D2B79F5UL;
 void timer0_init();
 void keypad_init();
 void buzzer_init();
+void lcd_init();
+void lcd_command(uint8_t cmd);
+void lcd_data(uint8_t data);
+void lcd_clear();
+void lcd_home();
+void lcd_setCursor(uint8_t col, uint8_t row);
+void lcd_print(const char *str);
+void lcd_printInt(int num);
+void lcd_printChar(char ch);
+void lcd_write(uint8_t ch);
+void lcd_createChar(uint8_t loc, uint8_t *charmap);
 unsigned long get_millis();
 void delay_ms(unsigned long ms);
 void seed_rng(unsigned long s);
@@ -142,6 +169,190 @@ void resetAll();
 
 // ── ISR ──────────────────────────────────────────────────────
 ISR(TIMER0_COMP_vect) { timer_millis++; }
+
+// ── LCD Control (4-bit mode, no library) ──────────────────────
+static uint8_t lcd_row = 0, lcd_col = 0;
+
+void lcd_pulse_enable()
+{
+  SET_BIT(LCD_E_PORT, LCD_E_PIN);
+  _delay_us(1);
+  CLR_BIT(LCD_E_PORT, LCD_E_PIN);
+  _delay_us(50);
+}
+
+void lcd_write_nibble(uint8_t nibble)
+{
+  if (nibble & 0x01)
+    SET_BIT(LCD_D4_PORT, LCD_D4_PIN);
+  else
+    CLR_BIT(LCD_D4_PORT, LCD_D4_PIN);
+  if (nibble & 0x02)
+    SET_BIT(LCD_D5_PORT, LCD_D5_PIN);
+  else
+    CLR_BIT(LCD_D5_PORT, LCD_D5_PIN);
+  if (nibble & 0x04)
+    SET_BIT(LCD_D6_PORT, LCD_D6_PIN);
+  else
+    CLR_BIT(LCD_D6_PORT, LCD_D6_PIN);
+  if (nibble & 0x08)
+    SET_BIT(LCD_D7_PORT, LCD_D7_PIN);
+  else
+    CLR_BIT(LCD_D7_PORT, LCD_D7_PIN);
+  lcd_pulse_enable();
+}
+
+void lcd_command(uint8_t cmd)
+{
+  CLR_BIT(LCD_RS_PORT, LCD_RS_PIN);
+  _delay_us(10);
+  lcd_write_nibble((cmd >> 4) & 0x0F);
+  lcd_write_nibble(cmd & 0x0F);
+  _delay_ms(2);
+}
+
+void lcd_data(uint8_t data)
+{
+  SET_BIT(LCD_RS_PORT, LCD_RS_PIN);
+  _delay_us(10);
+  lcd_write_nibble((data >> 4) & 0x0F);
+  lcd_write_nibble(data & 0x0F);
+  _delay_us(50);
+}
+
+void lcd_init()
+{
+  SET_BIT(LCD_RS_DDR, LCD_RS_PIN);
+  SET_BIT(LCD_E_DDR, LCD_E_PIN);
+  SET_BIT(LCD_D4_DDR, LCD_D4_PIN);
+  SET_BIT(LCD_D5_DDR, LCD_D5_PIN);
+  SET_BIT(LCD_D6_DDR, LCD_D6_PIN);
+  SET_BIT(LCD_D7_DDR, LCD_D7_PIN);
+  CLR_BIT(LCD_RS_PORT, LCD_RS_PIN);
+  CLR_BIT(LCD_E_PORT, LCD_E_PIN);
+  _delay_ms(20);
+  lcd_write_nibble(0x03);
+  _delay_ms(5);
+  lcd_write_nibble(0x03);
+  _delay_ms(1);
+  lcd_write_nibble(0x03);
+  _delay_ms(1);
+  lcd_write_nibble(0x02);
+  _delay_ms(1);
+  lcd_command(0x28);
+  lcd_command(0x0C);
+  lcd_command(0x06);
+  lcd_clear();
+  lcd_row = 0;
+  lcd_col = 0;
+}
+
+void lcd_clear()
+{
+  lcd_command(0x01);
+  _delay_ms(2);
+  lcd_row = 0;
+  lcd_col = 0;
+}
+
+void lcd_home()
+{
+  lcd_command(0x02);
+  _delay_ms(2);
+  lcd_row = 0;
+  lcd_col = 0;
+}
+
+void lcd_setCursor(uint8_t col, uint8_t row)
+{
+  uint8_t addr = (row == 0) ? col : (0x40 + col);
+  lcd_command(0x80 | addr);
+  _delay_us(50);
+  lcd_row = row;
+  lcd_col = col;
+}
+
+void lcd_print(const char *str)
+{
+  while (*str)
+  {
+    lcd_data(*str++);
+    lcd_col++;
+    if (lcd_col >= 16)
+    {
+      lcd_col = 0;
+      lcd_row = (lcd_row == 0) ? 1 : 0;
+      lcd_setCursor(lcd_col, lcd_row);
+    }
+  }
+}
+
+void lcd_printInt(int num)
+{
+  if (num < 0)
+  {
+    lcd_data('-');
+    num = -num;
+    lcd_col++;
+  }
+  if (num == 0)
+  {
+    lcd_data('0');
+    lcd_col++;
+    return;
+  }
+  char buffer[10];
+  int idx = 0;
+  while (num > 0)
+  {
+    buffer[idx++] = '0' + (num % 10);
+    num /= 10;
+  }
+  for (int i = idx - 1; i >= 0; i--)
+  {
+    lcd_data(buffer[i]);
+    lcd_col++;
+    if (lcd_col >= 16)
+    {
+      lcd_col = 0;
+      lcd_row = (lcd_row == 0) ? 1 : 0;
+      lcd_setCursor(lcd_col, lcd_row);
+    }
+  }
+}
+
+void lcd_printChar(char ch)
+{
+  lcd_data(ch);
+  lcd_col++;
+  if (lcd_col >= 16)
+  {
+    lcd_col = 0;
+    lcd_row = (lcd_row == 0) ? 1 : 0;
+    lcd_setCursor(lcd_col, lcd_row);
+  }
+}
+
+void lcd_write(uint8_t ch)
+{
+  lcd_data(ch);
+  lcd_col++;
+  if (lcd_col >= 16)
+  {
+    lcd_col = 0;
+    lcd_row = (lcd_row == 0) ? 1 : 0;
+    lcd_setCursor(lcd_col, lcd_row);
+  }
+}
+
+void lcd_createChar(uint8_t loc, uint8_t *charmap)
+{
+  loc &= 0x07;
+  lcd_command(0x40 | (loc << 3));
+  for (int i = 0; i < 8; i++)
+    lcd_data(charmap[i]);
+  lcd_setCursor(0, 0);
+}
 
 void timer0_init()
 {
@@ -269,13 +480,13 @@ long random_range(long mn, long mx)
 int main(void)
 {
   cli();
-  lcd.begin(16, 2);
-  lcd.createChar(CHAR_PLAYER, player);
-  lcd.createChar(CHAR_OBSTACLE, obstacle);
-  lcd.createChar(CHAR_ALIEN, alien);
-  lcd.createChar(CHAR_SHIP, ship);
-  lcd.createChar(CHAR_LASER, laser);
-  lcd.createChar(CHAR_EXPLODE, explode);
+  lcd_init();
+  lcd_createChar(CHAR_PLAYER, player);
+  lcd_createChar(CHAR_OBSTACLE, obstacle);
+  lcd_createChar(CHAR_ALIEN, alien);
+  lcd_createChar(CHAR_SHIP, ship);
+  lcd_createChar(CHAR_LASER, laser);
+  lcd_createChar(CHAR_EXPLODE, explode);
   timer0_init();
   keypad_init();
   buzzer_init();
@@ -311,8 +522,8 @@ int main(void)
 void resetAll()
 {
   currentState = MENU;
-  lcd.clear();
-  lcd.home();
+  lcd_clear();
+  lcd_home();
   CLR_BIT(PORTC, BUZZER_PIN);
   for (uint8_t i = 0; i < 4; i++)
     SET_BIT(PORTB, rowBits[i]);
@@ -348,18 +559,18 @@ void showGamesMenu()
 void runTimer()
 {
   LCD_SCREEN("Timer Mode", "Enter Seconds:", 1500);
-  lcd.clear();
+  lcd_clear();
   delay(50);
-  lcd.print("Input Time:");
-  lcd.setCursor(0, 1);
-  lcd.print("  [ - - ]");
+  lcd_print("Input Time:");
+  lcd_setCursor(0, 1);
+  lcd_print("  [ - - ]");
 
   char s1 = getKey();
-  lcd.setCursor(4, 1);
-  lcd.print(s1);
+  lcd_setCursor(4, 1);
+  lcd_printChar(s1);
   char s2 = getKey();
-  lcd.setCursor(6, 1);
-  lcd.print(s2);
+  lcd_setCursor(6, 1);
+  lcd_printChar(s2);
   delay(400);
 
   int total = ((s1 - '0') * 10) + (s2 - '0');
@@ -391,12 +602,12 @@ void runTimer()
       }
       if (ELAPSED(t, 1000UL))
       {
-        lcd.setCursor(0, 1);
-        lcd.print("Time: ");
+        lcd_setCursor(0, 1);
+        lcd_print("Time: ");
         if (val < 10)
-          lcd.print("0");
-        lcd.print(val);
-        lcd.print("s  ");
+          lcd_print("0");
+        lcd_printInt(val);
+        lcd_print("s  ");
         val--;
         t = get_millis();
         break;
@@ -414,9 +625,9 @@ void runTimer()
 void runDinoGame()
 {
   LCD_SCREEN("Dino Game!", "Any key to jump", 2000);
-  lcd.clear();
-  lcd.setCursor(12, 0);
-  lcd.print("S:0");
+  lcd_clear();
+  lcd_setCursor(12, 0);
+  lcd_print("S:0");
 
   int playerRow = 1, jumpTimer = 0, score = 0, speed = 300;
   const int N = 2;
@@ -457,9 +668,9 @@ void runDinoGame()
         int o = (i == 0) ? 1 : 0, base = (obs[o] > 15) ? obs[o] : 15;
         obs[i] = base + random(5, 9);
         score++;
-        lcd.setCursor(12, 0);
-        lcd.print("S:");
-        lcd.print(score);
+        lcd_setCursor(12, 0);
+        lcd_print("S:");
+        lcd_printInt(score);
         if (speed > 100 && score % 3 == 0)
           speed -= 15;
         if (score % 2 == 0)
@@ -504,7 +715,7 @@ void runDinoGame()
 void runSpaceGame()
 {
   LCD_SCREEN("Space Invaders!", "4:< 6:> 5:Shoot", 2000);
-  lcd.clear();
+  lcd_clear();
 
   int shipX = 7, alienX = 15, alienY = 0, prevAlienX = -1, prevAlienY = -1, alienDir = -1, alienSpeed = 700, score = 0;
   unsigned long t = get_millis();
