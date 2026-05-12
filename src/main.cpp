@@ -84,23 +84,28 @@
 // ── Hardware ─────────────────────────────────────────────────
 // LCD pins (4-bit mode): RS=PA3, E=PA4, D4-D7=PA5-PA7, D7_ALT=PC7
 #define LCD_RS_PORT PORTA
-#define LCD_RS_DDR DDRA
-#define LCD_RS_PIN PA3
-#define LCD_E_PORT PORTA
-#define LCD_E_DDR DDRA
-#define LCD_E_PIN PA4
+#define LCD_RS_DDR  DDRA
+#define LCD_RS_PIN  PA1
+
+#define LCD_E_PORT  PORTA
+#define LCD_E_DDR   DDRA
+#define LCD_E_PIN   PA2
+
 #define LCD_D4_PORT PORTA
-#define LCD_D4_DDR DDRA
-#define LCD_D4_PIN PA5
+#define LCD_D4_DDR  DDRA
+#define LCD_D4_PIN  PA3
+
 #define LCD_D5_PORT PORTA
-#define LCD_D5_DDR DDRA
-#define LCD_D5_PIN PA6
+#define LCD_D5_DDR  DDRA
+#define LCD_D5_PIN  PA4
+
 #define LCD_D6_PORT PORTA
-#define LCD_D6_DDR DDRA
-#define LCD_D6_PIN PA7
-#define LCD_D7_PORT PORTC
-#define LCD_D7_DDR DDRC
-#define LCD_D7_PIN PC7
+#define LCD_D6_DDR  DDRA
+#define LCD_D6_PIN  PA5
+
+#define LCD_D7_PORT PORTA
+#define LCD_D7_DDR  DDRA
+#define LCD_D7_PIN  PA6
 const uint8_t rowBits[4] = {4, 5, 6, 7};
 const uint8_t colBits[4] = {2, 3, 4, 5};
 #define BUZZER_PORT PORTC
@@ -149,7 +154,6 @@ void lcd_home();
 void lcd_setCursor(uint8_t col, uint8_t row);
 void lcd_print(const char *str);
 void lcd_printInt(int num);
-void lcd_printChar(char ch);
 void lcd_write(uint8_t ch);
 void lcd_createChar(uint8_t loc, uint8_t *charmap);
 unsigned long get_millis();
@@ -170,36 +174,19 @@ void resetAll();
 // ── ISR ──────────────────────────────────────────────────────
 ISR(TIMER0_COMP_vect) { timer_millis++; }
 
-// ── LCD Control (4-bit mode, no library) ──────────────────────
+// ── LCD Control (4-bit mode, simplified) ─────────────────────────
 static uint8_t lcd_row = 0, lcd_col = 0;
 
-void lcd_pulse_enable()
+void lcd_write_nibble(uint8_t nibble)
 {
+  (nibble & 1) ? SET_BIT(LCD_D4_PORT, LCD_D4_PIN) : CLR_BIT(LCD_D4_PORT, LCD_D4_PIN);
+  (nibble & 2) ? SET_BIT(LCD_D5_PORT, LCD_D5_PIN) : CLR_BIT(LCD_D5_PORT, LCD_D5_PIN);
+  (nibble & 4) ? SET_BIT(LCD_D6_PORT, LCD_D6_PIN) : CLR_BIT(LCD_D6_PORT, LCD_D6_PIN);
+  (nibble & 8) ? SET_BIT(LCD_D7_PORT, LCD_D7_PIN) : CLR_BIT(LCD_D7_PORT, LCD_D7_PIN);
   SET_BIT(LCD_E_PORT, LCD_E_PIN);
   _delay_us(1);
   CLR_BIT(LCD_E_PORT, LCD_E_PIN);
   _delay_us(50);
-}
-
-void lcd_write_nibble(uint8_t nibble)
-{
-  if (nibble & 0x01)
-    SET_BIT(LCD_D4_PORT, LCD_D4_PIN);
-  else
-    CLR_BIT(LCD_D4_PORT, LCD_D4_PIN);
-  if (nibble & 0x02)
-    SET_BIT(LCD_D5_PORT, LCD_D5_PIN);
-  else
-    CLR_BIT(LCD_D5_PORT, LCD_D5_PIN);
-  if (nibble & 0x04)
-    SET_BIT(LCD_D6_PORT, LCD_D6_PIN);
-  else
-    CLR_BIT(LCD_D6_PORT, LCD_D6_PIN);
-  if (nibble & 0x08)
-    SET_BIT(LCD_D7_PORT, LCD_D7_PIN);
-  else
-    CLR_BIT(LCD_D7_PORT, LCD_D7_PIN);
-  lcd_pulse_enable();
 }
 
 void lcd_command(uint8_t cmd)
@@ -228,8 +215,10 @@ void lcd_init()
   SET_BIT(LCD_D5_DDR, LCD_D5_PIN);
   SET_BIT(LCD_D6_DDR, LCD_D6_PIN);
   SET_BIT(LCD_D7_DDR, LCD_D7_PIN);
+
   CLR_BIT(LCD_RS_PORT, LCD_RS_PIN);
   CLR_BIT(LCD_E_PORT, LCD_E_PIN);
+  
   _delay_ms(20);
   lcd_write_nibble(0x03);
   _delay_ms(5);
@@ -239,10 +228,12 @@ void lcd_init()
   _delay_ms(1);
   lcd_write_nibble(0x02);
   _delay_ms(1);
-  lcd_command(0x28);
-  lcd_command(0x0C);
-  lcd_command(0x06);
-  lcd_clear();
+  
+  lcd_command(0x28); // 4-bit mode, 2 lines, 5x7 dots
+  lcd_command(0x0C); // Display ON, Cursor OFF
+  lcd_command(0x06); // Entry mode
+  lcd_command(0x01); // Clear display
+  _delay_ms(2);
   lcd_row = 0;
   lcd_col = 0;
 }
@@ -265,8 +256,7 @@ void lcd_home()
 
 void lcd_setCursor(uint8_t col, uint8_t row)
 {
-  uint8_t addr = (row == 0) ? col : (0x40 + col);
-  lcd_command(0x80 | addr);
+  lcd_command(0x80 | ((row ? 0x40 : 0) + col));
   _delay_us(50);
   lcd_row = row;
   lcd_col = col;
@@ -276,79 +266,39 @@ void lcd_print(const char *str)
 {
   while (*str)
   {
-    lcd_data(*str++);
-    lcd_col++;
     if (lcd_col >= 16)
     {
       lcd_col = 0;
-      lcd_row = (lcd_row == 0) ? 1 : 0;
-      lcd_setCursor(lcd_col, lcd_row);
+      lcd_row = !lcd_row;
+      lcd_setCursor(0, lcd_row);
     }
+    lcd_data(*str++);
+    lcd_col++;
   }
 }
 
 void lcd_printInt(int num)
 {
-  if (num < 0)
-  {
-    lcd_data('-');
-    num = -num;
-    lcd_col++;
-  }
-  if (num == 0)
-  {
-    lcd_data('0');
-    lcd_col++;
-    return;
-  }
-  char buffer[10];
-  int idx = 0;
-  while (num > 0)
-  {
-    buffer[idx++] = '0' + (num % 10);
-    num /= 10;
-  }
-  for (int i = idx - 1; i >= 0; i--)
-  {
-    lcd_data(buffer[i]);
-    lcd_col++;
-    if (lcd_col >= 16)
-    {
-      lcd_col = 0;
-      lcd_row = (lcd_row == 0) ? 1 : 0;
-      lcd_setCursor(lcd_col, lcd_row);
-    }
-  }
-}
-
-void lcd_printChar(char ch)
-{
-  lcd_data(ch);
-  lcd_col++;
-  if (lcd_col >= 16)
-  {
-    lcd_col = 0;
-    lcd_row = (lcd_row == 0) ? 1 : 0;
-    lcd_setCursor(lcd_col, lcd_row);
-  }
+  char buf[6];
+  snprintf(buf, sizeof(buf), "%d", num);
+  lcd_print(buf);
 }
 
 void lcd_write(uint8_t ch)
 {
-  lcd_data(ch);
-  lcd_col++;
   if (lcd_col >= 16)
   {
     lcd_col = 0;
-    lcd_row = (lcd_row == 0) ? 1 : 0;
-    lcd_setCursor(lcd_col, lcd_row);
+    lcd_row = !lcd_row;
+    lcd_setCursor(0, lcd_row);
   }
+  lcd_data(ch);
+  lcd_col++;
 }
 
 void lcd_createChar(uint8_t loc, uint8_t *charmap)
 {
-  loc &= 0x07;
-  lcd_command(0x40 | (loc << 3));
+  lcd_command(0x40 | ((loc & 7) << 3));
   for (int i = 0; i < 8; i++)
     lcd_data(charmap[i]);
   lcd_setCursor(0, 0);
@@ -567,10 +517,12 @@ void runTimer()
 
   char s1 = getKey();
   lcd_setCursor(4, 1);
-  lcd_printChar(s1);
+  char s1_str[2] = {s1, '\0'};
+  lcd_print(s1_str);
   char s2 = getKey();
   lcd_setCursor(6, 1);
-  lcd_printChar(s2);
+  char s2_str[2] = {s2, '\0'};
+  lcd_print(s2_str);
   delay(400);
 
   int total = ((s1 - '0') * 10) + (s2 - '0');
