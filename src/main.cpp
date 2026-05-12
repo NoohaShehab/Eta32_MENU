@@ -494,10 +494,12 @@ void runSpaceGame()
   {
     char k = getKeyNonBlocking();
     int oldX = shipX;
+
     if (k == '4' && shipX > 0)
       shipX--;
     if (k == '6' && shipX < 15)
       shipX++;
+
     if (IS_EXIT(k))
       break;
 
@@ -509,57 +511,68 @@ void runSpaceGame()
 
     if (k == '5')
     {
+
       playBeep(30);
       LCD_DRAW(shipX, 0, CHAR_LASER);
-      delay(150);
+
       if (shipX == alienX && alienY == 0)
       {
         LCD_DRAW(alienX, alienY, CHAR_EXPLODE);
         playBeep(80);
         delay(150);
         LCD_CLEAR(alienX, alienY);
-        prevAlienX = -1;
-        prevAlienY = -1;
+        LCD_CLEAR(shipX, 0);
         score++;
-        // Spawn alien at random position (avoid collision)
+
+        // Spawn alien at random position
+        alienY = 0;
         do
         {
-          alienX = random(0, 16);
-          alienY = random(0, 2);
-        } while (alienX == shipX && alienY == 1);
+          alienX = random(3, 13);
+        } while (alienX == shipX);
+
+        prevAlienX = alienX;
+        prevAlienY = alienY;
+
         alienDir = (random(0, 2) == 0) ? -1 : 1;
         if (alienSpeed > 150)
           alienSpeed -= 10;
         t = get_millis();
       }
-      else if (shipX != alienX)
+      else
+      {
+        _delay_ms(50);
         LCD_CLEAR(shipX, 0);
+      }
     }
 
     if (ELAPSED(t, alienSpeed))
     {
-      if (prevAlienX >= 0 && prevAlienX <= 15 && prevAlienY >= 0 && prevAlienY <= 1)
+
+      if (prevAlienX >= 0 && prevAlienX <= 15)
         LCD_CLEAR(prevAlienX, prevAlienY);
+
       alienX += alienDir;
-      if (score > 3 && random(0, 10) > 7 && alienX > 3 && alienX < 12)
-        alienDir = -alienDir;
-      if ((alienDir == -1 && alienX < 0) || (alienDir == 1 && alienX > 15))
+
+      if (alienX < 0 || alienX > 15)
       {
         LCD_DRAW(shipX, 1, CHAR_EXPLODE);
         break;
       }
-      // Check collision with ship
+
       if (alienX == shipX && alienY == 1)
       {
         LCD_DRAW(shipX, 1, CHAR_EXPLODE);
         break;
       }
-      if (alienX >= 0 && alienX <= 15)
-      {
-        LCD_DRAW(alienX, alienY, CHAR_ALIEN);
-        prevAlienX = alienX;
-        prevAlienY = alienY;
-      }
+
+      LCD_DRAW(alienX, alienY, CHAR_ALIEN);
+      prevAlienX = alienX;
+      prevAlienY = alienY;
+
+      if (score > 3 && random(0, 10) > 7 && alienX > 3 && alienX < 12)
+        alienDir = -alienDir;
+
       t = get_millis();
     }
   }
